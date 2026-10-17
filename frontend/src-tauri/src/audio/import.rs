@@ -341,7 +341,13 @@ async fn run_import<R: Runtime>(
 
     // Create meeting folder
     let base_folder = get_default_recordings_folder();
-    let meeting_folder = create_meeting_folder(&base_folder, &title, false)?;
+    let meeting_folder = create_meeting_folder(&base_folder, &title, false).map_err(|e| {
+        anyhow!(
+            "Failed to create meeting folder under '{}': {}",
+            base_folder.display(),
+            e
+        )
+    })?;
 
     // Copy audio file to meeting folder
     emit_progress(&app, "copying", 10, "Copying audio file...");

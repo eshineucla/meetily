@@ -1,8 +1,8 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "meetily",
+    "productName": "MeetingMinutes",
     "version": "0.4.1",
-    "identifier": "com.meetily.ai",
+    "identifier": "cn.meetingminutes.app",
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
@@ -12,7 +12,7 @@
     "app": {
         "windows": [
             {
-                "title": "meetily",
+                "title": "MeetingMinutes",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
@@ -88,7 +88,7 @@
             "app",
             "dmg"
         ],
-        "createUpdaterArtifacts": true,
+        "createUpdaterArtifacts": false,
         "icon": [
             "icons/icon.png",
             "icons/app_icon.icns",
