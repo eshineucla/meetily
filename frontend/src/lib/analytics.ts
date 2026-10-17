@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { ANALYTICS_ENABLED } from '@/config/features';
 
 export interface AnalyticsProperties {
   [key: string]: string;
@@ -28,6 +29,10 @@ export class Analytics {
   private static readonly reportedTranscriptionErrorCodes = new Set<string>();
 
   static async init(): Promise<void> {
+    if (!ANALYTICS_ENABLED) {
+      return;
+    }
+
     // Prevent duplicate initialization
     if (this.initialized) {
       return;

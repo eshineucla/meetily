@@ -201,7 +201,7 @@ export function LanguageSelection({
         {isParakeet && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800">
             <p className="font-medium">ℹ️ Parakeet Language Support</p>
-            <p className="mt-1 text-xs">Parakeet currently only supports automatic language detection. Manual language selection is not available. Use Whisper if you need to specify a particular language.</p>
+            <p className="mt-1 text-xs">Parakeet 仅支持英文和欧洲语言，不支持中文，也不能手动指定语言。转写中文请使用 Whisper。</p>
           </div>
         )}
 

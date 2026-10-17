@@ -205,6 +205,12 @@ pub async fn whisper_is_model_loaded() -> Result<bool, String> {
     }
 }
 
+/// Whisper model recommended for this machine (used by onboarding)
+#[command]
+pub async fn whisper_get_recommended_model() -> Result<String, String> {
+    Ok(crate::config::recommended_whisper_model().to_string())
+}
+
 #[command]
 pub async fn whisper_has_available_models() -> Result<bool, String> {
     let engine = {
