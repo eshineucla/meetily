@@ -10,6 +10,7 @@ import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
 import { BetaSettings } from '@/components/BetaSettings';
+import { BETA_FEATURES_ENABLED } from '@/config/features';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
@@ -19,8 +20,8 @@ const TABS = [
   { value: 'recording', label: '录音', icon: Mic },
   { value: 'Transcriptionmodels', label: '转写', icon: DatabaseIcon },
   { value: 'summaryModels', label: '纪要', icon: SparkleIcon },
-  { value: 'beta', label: '测试版', icon: FlaskConical }
-] as const;
+  ...(BETA_FEATURES_ENABLED ? [{ value: 'beta', label: '测试版', icon: FlaskConical }] : []),
+];
 
 export default function SettingsPage() {
   const router = useRouter();

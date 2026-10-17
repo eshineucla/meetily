@@ -16,6 +16,8 @@
  * 3. Remove conditional checks - feature is now always-on
  */
 
+import { BETA_FEATURES_ENABLED } from '@/config/features';
+
 export interface BetaFeatures {
   /**
    * Import audio files and retranscribe existing meetings with different language settings
@@ -55,6 +57,9 @@ export type BetaFeatureKey = keyof BetaFeatures;
  * @returns BetaFeatures object with values from localStorage or defaults
  */
 export function loadBetaFeatures(): BetaFeatures {
+  if (!BETA_FEATURES_ENABLED) {
+    return { importAndRetranscribe: false };
+  }
   if (typeof window === 'undefined') {
     return { ...DEFAULT_BETA_FEATURES };
   }
