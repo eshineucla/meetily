@@ -269,10 +269,34 @@ fn build_final_report_system_prompt(
     )
 }
 
-/// Rough token count estimation using character count
+/// Estimated tokens per character for Latin-script text
+const TOKENS_PER_CHAR: f64 = 0.35;
+
+/// CJK ideographs, kana, hangul and fullwidth punctuation each take about one token,
+/// roughly three times what a Latin letter costs
+fn is_wide_char(c: char) -> bool {
+    matches!(c as u32,
+        0x2E80..=0x9FFF      // CJK radicals, punctuation, kana, ideographs
+        | 0xAC00..=0xD7AF    // Hangul syllables
+        | 0xF900..=0xFAFF    // CJK compatibility ideographs
+        | 0xFE30..=0xFE4F    // CJK compatibility forms
+        | 0xFF00..=0xFFEF    // Fullwidth forms
+        | 0x20000..=0x3FFFF) // CJK extensions
+}
+
+/// Size of a character in Latin-character units: 1 for Latin text, ~2.9 for CJK
+fn char_units(c: char) -> f64 {
+    if is_wide_char(c) {
+        1.0 / TOKENS_PER_CHAR
+    } else {
+        1.0
+    }
+}
+
+/// Rough token count estimation using character count, counting CJK characters as one token each
 pub fn rough_token_count(s: &str) -> usize {
-    let char_count = s.chars().count();
-    (char_count as f64 * 0.35).ceil() as usize
+    let units: f64 = s.chars().map(char_units).sum();
+    (units * TOKENS_PER_CHAR).ceil() as usize
 }
 
 /// Chunks text into overlapping segments based on token count
@@ -295,26 +319,47 @@ pub fn chunk_text(text: &str, chunk_size_tokens: usize, overlap_tokens: usize) -
         return vec![];
     }
 
-    // Convert token-based sizes to character-based sizes
-    // Using ~2.85 chars per token (inverse of 0.35 tokens per char from rough_token_count)
-    let chars_per_token = 1.0 / 0.35;
-    let chunk_size_chars = (chunk_size_tokens as f64 * chars_per_token).ceil() as usize;
-    let overlap_chars = (overlap_tokens as f64 * chars_per_token).ceil() as usize;
+    // Convert token-based sizes to Latin-character units (see rough_token_count),
+    // so a chunk of Chinese text holds about a third as many characters as English
+    let chars_per_token = 1.0 / TOKENS_PER_CHAR;
+    let chunk_size_units = (chunk_size_tokens as f64 * chars_per_token).ceil();
+    let overlap_units = (overlap_tokens as f64 * chars_per_token).ceil();
 
     // Collect characters for indexing (needed for proper Unicode support)
     let chars: Vec<char> = text.chars().collect();
     let total_chars = chars.len();
 
-    if total_chars <= chunk_size_chars {
+    // units_before[i] is the size of chars[..i]
+    let mut units_before = Vec::with_capacity(total_chars + 1);
+    units_before.push(0.0);
+    for c in &chars {
+        units_before.push(units_before.last().unwrap() + char_units(*c));
+    }
+
+    if units_before[total_chars] <= chunk_size_units {
         info!("Text is shorter than chunk size, returning as a single chunk.");
         return vec![text.to_string()];
     }
+
+    // How many characters starting at `start` fit in `units` (at least one)
+    let fit = |start: usize, units: f64| -> usize {
+        let limit = units_before[start] + units;
+        let end = units_before.partition_point(|&u| u <= limit).saturating_sub(1);
+        end.clamp(start + 1, total_chars) - start
+    };
+
+    // How many characters just before `end` make up the overlap
+    let overlap_chars_before = |end: usize| -> usize {
+        let limit = units_before[end] - overlap_units;
+        end - units_before.partition_point(|&u| u < limit).min(end)
+    };
 
     let mut chunks = Vec::new();
     let mut start_char = 0;
 
     while start_char < total_chars {
-        let end_char = (start_char + chunk_size_chars).min(total_chars);
+        let end_char = start_char + fit(start_char, chunk_size_units);
+        let overlap_chars = overlap_chars_before(end_char);
         let mut emitted_end_char = end_char;
 
         // Convert character indices to byte indices for string slicing
@@ -324,7 +369,10 @@ pub fn chunk_text(text: &str, chunk_size_tokens: usize, overlap_tokens: usize) -
         // Try to break at sentence or word boundary for cleaner chunks
         if end_char < total_chars {
             let slice = &text[start_byte..end_byte];
-            let sentence_boundary = slice.rfind(". ").map(|index| index + 2);
+            let sentence_boundary = [". ", "。", "！", "？", "\n"]
+                .iter()
+                .filter_map(|mark| slice.rfind(mark).map(|index| index + mark.len()))
+                .max();
             let word_boundary = slice.rfind(' ').map(|index| index + 1);
             let boundary = sentence_boundary
                 .filter(|end| slice[..*end].chars().count() > overlap_chars)
@@ -346,7 +394,7 @@ pub fn chunk_text(text: &str, chunk_size_tokens: usize, overlap_tokens: usize) -
         }
 
         start_char = emitted_end_char
-            .saturating_sub(overlap_chars)
+            .saturating_sub(overlap_chars_before(emitted_end_char))
             .max(start_char + 1);
     }
 
@@ -690,6 +738,25 @@ mod tests {
     #[test]
     fn chunk_text_keeps_unicode_boundaries() {
         assert_eq!(chunk_text("é ab", 1, 0), vec!["é ", "ab"]);
+    }
+
+    #[test]
+    fn chinese_text_counts_about_one_token_per_character() {
+        assert_eq!(rough_token_count("abcdefghij"), 4);
+        assert_eq!(rough_token_count("会议纪要"), 4);
+        assert_eq!(rough_token_count("讨论了Q3预算。"), 7);
+    }
+
+    #[test]
+    fn chinese_chunks_stay_within_token_budget() {
+        let text = "张三：我们今天讨论第三季度的预算安排。".repeat(200);
+        let chunks = chunk_text(&text, 500, 50);
+        assert!(chunks.len() > 1);
+        for chunk in &chunks {
+            assert!(rough_token_count(chunk) <= 500, "chunk too large: {}", rough_token_count(chunk));
+            assert!(chunk.ends_with('。') || text.ends_with(chunk.as_str()));
+        }
+        assert!(chunks.last().unwrap().ends_with('。'));
     }
 
     #[test]
