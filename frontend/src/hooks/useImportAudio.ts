@@ -175,7 +175,7 @@ export function useImportAudio({
       }
     } catch (err: any) {
       setStatus('error');
-      const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || 'Failed to validate file');
+      const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || '文件校验失败');
       setError(errorMsg);
       onErrorRef.current?.(errorMsg);
       return null;
@@ -194,7 +194,7 @@ export function useImportAudio({
       return result;
     } catch (err: any) {
       setStatus('error');
-      const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || 'Failed to validate file');
+      const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || '文件校验失败');
       setError(errorMsg);
       onErrorRef.current?.(errorMsg);
       return null;
@@ -235,7 +235,7 @@ export function useImportAudio({
         });
       } catch (err: any) {
         setStatus('error');
-        const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || 'Failed to start import');
+        const errorMsg = typeof err === 'string' ? err : (err?.message || String(err) || '开始导入失败');
         setError(errorMsg);
 
         await Analytics.trackError('import_audio_failed', errorMsg);

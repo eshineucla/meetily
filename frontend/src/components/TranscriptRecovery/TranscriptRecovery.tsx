@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 import { AlertCircle, CheckCircle2, Clock, FileText, Trash2, XCircle } from 'lucide-react';
 import {
   Dialog,
@@ -146,7 +147,7 @@ export function TranscriptRecovery({
                         <p className="font-medium text-sm truncate">{meeting.title}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                           <Clock className="w-3 h-3" />
-                          {formatDistanceToNow(new Date(meeting.lastUpdated), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(meeting.lastUpdated), { addSuffix: true, locale: zhCN })}
                         </p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                           <FileText className="w-3 h-3" />
@@ -179,7 +180,7 @@ export function TranscriptRecovery({
                   <div className="p-4 border-b bg-muted/50">
                     <h4 className="font-semibold">{selectedMeeting.title}</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      开始于 {new Date(selectedMeeting.startTime).toLocaleString()}
+                      开始于 {new Date(selectedMeeting.startTime).toLocaleString('zh-CN')}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-sm">
                       <span className="flex items-center gap-1">
@@ -229,7 +230,7 @@ export function TranscriptRecovery({
                                 }
                                 return '--:--';
                               }
-                              return date.toLocaleTimeString();
+                              return date.toLocaleTimeString('zh-CN');
                             } catch {
                               return '--:--';
                             }

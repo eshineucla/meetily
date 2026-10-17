@@ -155,7 +155,7 @@ export function useModelConfiguration({ serverAddress }: UseModelConfigurationPr
       if (error instanceof Error) {
         setError(error.message);
       } else {
-        setError('Failed to save model config: Unknown error');
+        setError('保存模型配置失败：未知错误');
       }
     }
   }, [modelConfig]);

@@ -11,6 +11,8 @@ import {
   getModelPerformanceBadge,
   isQuantizedModel,
   getModelTagline,
+  getAccuracyLabel,
+  getSpeedLabel,
   WhisperAPI
 } from '../lib/whisper';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -663,11 +665,11 @@ function ModelCard({
               </span>
               <span className="flex items-center space-x-1">
                 <span>🎯</span>
-                <span>准确度：{model.accuracy}</span>
+                <span>准确度：{getAccuracyLabel(model.accuracy)}</span>
               </span>
               <span className="flex items-center space-x-1">
                 <span>⚡</span>
-                <span>速度：{model.speed}</span>
+                <span>速度：{getSpeedLabel(model.speed)}</span>
               </span>
             </div>
           </div>

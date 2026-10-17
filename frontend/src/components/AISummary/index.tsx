@@ -559,7 +559,7 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
 
   const convertToMarkdown = () => {
     let markdown = `# AI 生成的会议纪要：${meeting?.id || '未知'} - ${meeting?.title || '未命名会议'}\n\n`;
-    markdown += `## 日期：${meeting?.created_at ? new Date(meeting.created_at).toLocaleDateString() : new Date().toLocaleDateString()}\n\n`;
+    markdown += `## 日期：${meeting?.created_at ? new Date(meeting.created_at).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN')}\n\n`;
     
     Object.entries(currentSummary).forEach(([key, section]) => {
       if (key === 'title') {

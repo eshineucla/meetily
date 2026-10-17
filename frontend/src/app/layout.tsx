@@ -113,8 +113,8 @@ export default function RootLayout({
       console.log('[Layout] Received request-recording-toggle from tray');
 
       if (showOnboarding) {
-        toast.error("Please complete setup first", {
-          description: "You need to finish onboarding before you can start recording."
+        toast.error("请先完成初始设置", {
+          description: "完成首次设置后才能开始录音。"
         });
       } else {
         // If in main app, forward to useRecordingStart via window event
@@ -161,8 +161,8 @@ export default function RootLayout({
       setImportFilePath(audioFile);
       setShowImportDialog(true);
     } else if (paths.length > 0) {
-      toast.error('Please drop an audio file', {
-        description: `Supported formats: ${getAudioFormatsDisplayList()}`
+      toast.error('请拖入音频文件', {
+        description: `支持的格式：${getAudioFormatsDisplayList()}`
       });
     }
   }, []);

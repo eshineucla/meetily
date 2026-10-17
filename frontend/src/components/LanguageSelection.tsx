@@ -11,8 +11,8 @@ export interface Language {
 
 // ISO 639-1 language codes supported by Whisper
 const LANGUAGES: Language[] = [
-  { code: 'auto', name: '自动检测（保留原语言）' },
-  { code: 'auto-translate', name: '自动检测（翻译为英语）' },
+  { code: 'auto', name: '自动检测' },
+  { code: 'auto-translate', name: '自动检测并翻译为英语' },
   { code: 'en', name: '英语' },
   { code: 'zh', name: '中文' },
   { code: 'de', name: '德语' },
@@ -171,7 +171,7 @@ export function LanguageSelection({
   // Find the selected language name for display
   const selectedLanguageName = LANGUAGES.find(
     lang => lang.code === selectedLanguage
-  )?.name || '自动检测（保留原语言）';
+  )?.name || '自动检测';
 
   return (
     <div className="space-y-4">

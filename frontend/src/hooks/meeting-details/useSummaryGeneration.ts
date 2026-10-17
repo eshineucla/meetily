@@ -108,7 +108,7 @@ export function useSummaryGeneration({
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>(() => restoredSummaryStatus(restored));
   const [summaryError, setSummaryError] = useState<string | null>(() =>
     restoredSummaryStatus(restored) === 'error'
-      ? restored?.error || 'Summary generation failed. Please retry.'
+      ? restored?.error || '纪要生成失败，请重试。'
       : null,
   );
   const mountedRef = useRef(true);
@@ -128,15 +128,15 @@ export function useSummaryGeneration({
   const getSummaryStatusMessage = useCallback((status: SummaryStatus) => {
     switch (status) {
       case 'processing':
-        return 'Processing transcript...';
+        return '正在处理转写稿...';
       case 'summarizing':
-        return 'Generating summary...';
+        return '正在生成纪要...';
       case 'regenerating':
-        return 'Regenerating summary...';
+        return '正在重新生成纪要...';
       case 'completed':
-        return 'Summary completed';
+        return '纪要已完成';
       case 'error':
-        return 'Error generating summary';
+        return '生成纪要出错';
       default:
         return '';
     }
@@ -304,7 +304,7 @@ export function useSummaryGeneration({
     const status = restoredSummaryStatus(initialSummary);
     setSummaryStatus(status);
     setSummaryError(status === 'error'
-      ? initialSummary.error || 'Summary generation failed. Please retry.'
+      ? initialSummary.error || '纪要生成失败，请重试。'
       : null);
     if (status !== 'processing' || !initialSummary.start) return;
 

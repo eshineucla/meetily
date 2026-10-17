@@ -252,7 +252,7 @@ export function SetupOverviewStep() {
               />
               <Input
                 type="password"
-                placeholder="API Key（可选）"
+                placeholder="API 密钥（可选）"
                 value={customOpenAI.apiKey}
                 onChange={(e) => setCustomOpenAI({ ...customOpenAI, apiKey: e.target.value })}
               />

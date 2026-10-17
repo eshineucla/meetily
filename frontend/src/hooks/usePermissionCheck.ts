@@ -53,7 +53,7 @@ export function usePermissionCheck() {
         hasMicrophone: false,
         hasSystemAudio: false,
         isChecking: false,
-        error: error instanceof Error ? error.message : 'Failed to check permissions',
+        error: error instanceof Error ? error.message : '检查权限失败',
       });
       return { hasMicrophone: false, hasSystemAudio: false };
     }
