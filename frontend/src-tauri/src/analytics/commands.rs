@@ -6,8 +6,17 @@ use crate::analytics::{AnalyticsClient, AnalyticsConfig};
 // Global analytics client
 static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::sync::Mutex::new(None);
 
+// Analytics is switched off in this build (M1-02): init_analytics never creates a
+// PostHog client, so no event can leave the machine even if the frontend calls it.
+// The client code stays until the classified build removes it (M3-02).
+const ANALYTICS_ENABLED: bool = false;
+
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
+    if !ANALYTICS_ENABLED {
+        return Ok(());
+    }
+
     let config = AnalyticsConfig {
         api_key: "phc_ohznXPkRSJYWmrfez9mYxtXv5U5Nekq3iiUts87dJfcr".to_string(),
         host: Some("https://us.i.posthog.com".to_string()),

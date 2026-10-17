@@ -3,6 +3,7 @@
 import React, { useEffect, ReactNode, useRef, useState, createContext } from 'react';
 import Analytics from '@/lib/analytics';
 import { load } from '@tauri-apps/plugin-store';
+import { ANALYTICS_ENABLED } from '@/config/features';
 
 const ANALYTICS_DEFAULT_OFF_MIGRATION_KEY = 'analyticsDefaultOffMigrationV1';
 
@@ -25,6 +26,11 @@ export default function AnalyticsProvider({ children }: AnalyticsProviderProps) 
   const initialized = useRef(false);
 
   useEffect(() => {
+    // Analytics is switched off for this build; never read consent or initialize.
+    if (!ANALYTICS_ENABLED) {
+      return;
+    }
+
     // Prevent duplicate initialization in React StrictMode
     if (initialized.current) {
       return;

@@ -8,6 +8,7 @@
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
+import { UPDATES_ENABLED } from '@/config/features';
 
 export interface UpdateInfo {
   available: boolean;
@@ -39,6 +40,14 @@ export class UpdateService {
    * @returns Promise with update information
    */
   async checkForUpdates(force = false): Promise<UpdateInfo> {
+    // Updates are switched off for this build: never contact the update server.
+    if (!UPDATES_ENABLED) {
+      return {
+        available: false,
+        currentVersion: await getVersion(),
+      };
+    }
+
     // Prevent concurrent update checks
     if (this.updateCheckInProgress) {
       throw new Error('Update check already in progress');
@@ -95,6 +104,10 @@ export class UpdateService {
     update: Update,
     onProgress?: (progress: UpdateProgress) => void
   ): Promise<void> {
+    if (!UPDATES_ENABLED) {
+      throw new Error('Updates are disabled in this build');
+    }
+
     try {
       // Download the update
       await update.download();

@@ -8,6 +8,7 @@ import { updateService, UpdateInfo } from '@/services/updateService';
 import { Button } from './ui/button';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ANALYTICS_ENABLED, UPDATES_ENABLED } from '@/config/features';
 
 
 export function About() {
@@ -65,6 +66,7 @@ export function About() {
                 <p className="text-medium text-gray-600 mt-1">
                     Real-time notes and summaries that never leave your machine.
                 </p>
+                {UPDATES_ENABLED && (
                 <div className="mt-3">
                     <Button
                         onClick={handleCheckForUpdates}
@@ -91,6 +93,7 @@ export function About() {
                         </div>
                     )}
                 </div>
+                )}
             </div>
 
             {/* Features Grid - Compact */}
@@ -143,7 +146,7 @@ export function About() {
                     Built by Zackriya Solutions
                 </p>
             </div>
-            <AnalyticsConsentSwitch />
+            {ANALYTICS_ENABLED && <AnalyticsConsentSwitch />}
 
             {/* Update Dialog */}
             <UpdateDialog

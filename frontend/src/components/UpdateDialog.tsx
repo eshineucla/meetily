@@ -13,6 +13,7 @@ import { updateService, UpdateInfo, UpdateProgress } from '@/services/updateServ
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { toast } from 'sonner';
+import { UPDATES_ENABLED } from '@/config/features';
 
 interface UpdateDialogProps {
   open: boolean;
@@ -27,7 +28,7 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
   const [update, setUpdate] = useState<Update | null>(null);
 
   useEffect(() => {
-    if (open && updateInfo?.available) {
+    if (open && updateInfo?.available && UPDATES_ENABLED) {
       // Reset state when dialog opens
       setIsDownloading(false);
       setProgress(null);
@@ -54,6 +55,11 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
   }, [open, updateInfo]);
 
   const handleDownloadAndInstall = async () => {
+    if (!UPDATES_ENABLED) {
+      setError('Updates are disabled in this build');
+      return;
+    }
+
     // Get update object if not already available
     let updateToUse: Update | null = update;
     if (!updateToUse) {
