@@ -92,10 +92,10 @@ export function SummaryGeneratorButtonGroup({
             Analytics.trackButtonClick('stop_summary_generation', 'meeting_details');
             onStopGeneration();
           }}
-          title="Stop summary generation"
+          title="停止生成纪要"
         >
           <Square size={18} fill="currentColor" />
-          <span className="hidden @[24rem]:inline">Stop</span>
+          <span className="hidden @[24rem]:inline">停止</span>
         </Button>
       ) : (
         <Button
@@ -109,19 +109,19 @@ export function SummaryGeneratorButtonGroup({
           disabled={isModelConfigLoading}
           title={
             isModelConfigLoading
-              ? 'Loading model configuration...'
-              : hasSummary ? 'Regenerate AI Summary' : 'Generate AI Summary'
+              ? '正在加载模型配置…'
+              : hasSummary ? '重新生成 AI 纪要' : '生成 AI 纪要'
           }
         >
           {isModelConfigLoading ? (
             <>
               <Loader2 className="animate-spin" size={18} />
-              <span className="hidden @[24rem]:inline">Processing...</span>
+              <span className="hidden @[24rem]:inline">处理中…</span>
             </>
           ) : (
             <>
               <Sparkles size={18} />
-              <span className="hidden @[24rem]:inline">{hasSummary ? 'Regenerate Summary' : 'Generate Summary'}</span>
+              <span className="hidden @[24rem]:inline">{hasSummary ? '重新生成纪要' : '生成纪要'}</span>
             </>
           )}
         </Button>
@@ -135,17 +135,17 @@ export function SummaryGeneratorButtonGroup({
           <Button
             variant="outline"
             size="sm"
-            title="Summary Settings"
+            title="纪要设置"
           >
             <Settings />
-            <span className="hidden @[40rem]:inline">AI Model</span>
+            <span className="hidden @[40rem]:inline">AI 模型</span>
           </Button>
         </DialogTrigger>
         <DialogContent
           aria-describedby={undefined}
         >
           <VisuallyHidden>
-            <DialogTitle>Model Settings</DialogTitle>
+            <DialogTitle>模型设置</DialogTitle>
           </VisuallyHidden>
           <ModelSettingsModal
             onSave={async (config) => {
@@ -167,10 +167,10 @@ export function SummaryGeneratorButtonGroup({
             <Button
               variant="outline"
               size="sm"
-              title="Select summary template"
+              title="选择纪要模板"
             >
               <FileText />
-              <span className="hidden @[40rem]:inline">Template</span>
+              <span className="hidden @[40rem]:inline">模板</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

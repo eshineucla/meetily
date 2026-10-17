@@ -265,7 +265,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           // selected mic that wasn't available at start (backend fell back to
           // the default). Copy is worded to be accurate for both.
           toast.info(
-            `Microphone switched to ${device_name} for this meeting.`,
+            `本次会议的麦克风已切换为 ${device_name}。`,
             { duration: 6000 }
           );
         });
@@ -279,7 +279,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           // available" — expected, not an error worth a toast.
           if (isRecordingRef.current) {
             toast.error(
-              `Microphone fallback failed for ${device_name}: ${error}`,
+              `切换到备用麦克风 ${device_name} 失败：${error}`,
               { duration: 8000 }
             );
           }
@@ -292,7 +292,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           // Fires at recording start, before isRecording flips true, so this
           // is intentionally NOT gated by isRecordingRef.
           toast.error(
-            'No microphone available — recording system audio only.',
+            '没有可用的麦克风，仅录制系统音频。',
             { duration: 8000 }
           );
         });
@@ -305,7 +305,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
           // mic-swap-failed so a stale event after Stop doesn't alarm the user.
           if (isRecordingRef.current) {
             toast.error(
-              `Microphone '${device_name}' could not be recovered — recording continues without a microphone. Stop and restart to fix.`,
+              `麦克风“${device_name}”无法恢复，录音将在没有麦克风的情况下继续。请停止并重新开始录音以修复。`,
               { duration: 10000 }
             );
           }

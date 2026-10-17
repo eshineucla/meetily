@@ -52,7 +52,7 @@ export function useCopyOperations({
       return allData.transcripts;
     } catch (error) {
       console.error('❌ Error fetching all transcripts:', error);
-      toast.error('Failed to fetch transcripts for copying');
+      toast.error('获取转写稿失败，无法复制');
       return [];
     }
   }, []);
@@ -64,7 +64,7 @@ export function useCopyOperations({
     const allTranscripts = await fetchAllTranscripts(meeting.id);
 
     if (!allTranscripts.length) {
-      const error_msg = 'No transcripts available to copy';
+      const error_msg = '没有可复制的转写稿';
       console.log(error_msg);
       toast.error(error_msg);
       return;
@@ -91,7 +91,7 @@ export function useCopyOperations({
       .join('\n');
 
     await navigator.clipboard.writeText(header + date + fullTranscript);
-    toast.success("Transcript copied to clipboard");
+    toast.success("转写稿已复制到剪贴板");
 
     // Track copy analytics
     const wordCount = allTranscripts
@@ -108,7 +108,7 @@ export function useCopyOperations({
   // Copy summary to clipboard
   const handleCopySummary = useCallback(async () => {
     if (!hasVisibleSummaryContent(aiSummary)) {
-      toast.error('No summary content available to copy');
+      toast.error('没有可复制的纪要内容');
       return;
     }
     try {
@@ -157,7 +157,7 @@ export function useCopyOperations({
       // If still no summary content, show message
       if (!summaryMarkdown.trim()) {
         console.error('❌ No summary content available to copy');
-        toast.error('No summary content available to copy');
+        toast.error('没有可复制的纪要内容');
         return;
       }
 
@@ -181,7 +181,7 @@ export function useCopyOperations({
       await navigator.clipboard.writeText(fullMarkdown);
 
       console.log('✅ Successfully copied to clipboard!');
-      toast.success("Summary copied to clipboard");
+      toast.success("纪要已复制到剪贴板");
 
       // Track copy analytics
       await Analytics.trackCopy('summary', {
@@ -190,7 +190,7 @@ export function useCopyOperations({
       });
     } catch (error) {
       console.error('❌ Failed to copy summary:', error);
-      toast.error("Failed to copy summary");
+      toast.error("复制纪要失败");
     }
   }, [aiSummary, meetingTitle, meeting, blockNoteSummaryRef]);
 

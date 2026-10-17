@@ -32,10 +32,10 @@ export function EmptyStateSummary({
     >
       <FileQuestion className="w-16 h-16 text-gray-300 mb-4" />
       <h3 className="text-lg font-semibold text-gray-900 mb-2">
-        No Summary Generated Yet
+        尚未生成纪要
       </h3>
       <p className="text-sm text-gray-500 mb-6 max-w-md">
-        Generate an AI-powered summary of your meeting transcript to get key points, action items, and decisions.
+        基于会议转写稿生成 AI 纪要，提炼要点、待办事项和决策。
       </p>
 
       {error && (
@@ -54,13 +54,13 @@ export function EmptyStateSummary({
                 className="gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                {isGenerating ? 'Generating...' : error ? 'Retry summary' : 'Generate Summary'}
+                {isGenerating ? '正在生成…' : error ? '重新生成纪要' : '生成纪要'}
               </Button>
             </div>
           </TooltipTrigger>
           {!hasModel && (
             <TooltipContent>
-              <p>Please select a model in Settings first</p>
+              <p>请先在设置中选择模型</p>
             </TooltipContent>
           )}
         </Tooltip>
@@ -68,7 +68,7 @@ export function EmptyStateSummary({
 
       {!hasModel && (
         <p className="text-xs text-amber-600 mt-3">
-          Please select a model in Settings first
+          请先在设置中选择模型
         </p>
       )}
     </motion.div>

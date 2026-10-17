@@ -9,8 +9,8 @@ const MIN_RATIO = 0.3;
 const MAX_RATIO = 0.5;
 
 const TABS = [
-  { value: 'transcript' as const, label: 'Transcript', icon: FileText },
-  { value: 'summary' as const, label: 'Summary', icon: Sparkles },
+  { value: 'transcript' as const, label: '转写稿', icon: FileText },
+  { value: 'summary' as const, label: '纪要', icon: Sparkles },
 ];
 
 function readStoredRatio(): number {
@@ -101,10 +101,10 @@ export function MeetingDetailsSplitView({
   }, [ratio]);
 
   const transcriptPanelProps = isDesktop
-    ? { role: 'region' as const, 'aria-label': 'Transcript', tabIndex: -1 }
+    ? { role: 'region' as const, 'aria-label': '转写稿', tabIndex: -1 }
     : {};
   const summaryPanelProps = isDesktop
-    ? { role: 'region' as const, 'aria-label': 'Summary', tabIndex: -1 }
+    ? { role: 'region' as const, 'aria-label': '纪要', tabIndex: -1 }
     : {};
 
   return (
@@ -152,8 +152,8 @@ export function MeetingDetailsSplitView({
           aria-valuenow={Math.round(ratio * 100)}
           aria-valuemin={Math.round(MIN_RATIO * 100)}
           aria-valuemax={Math.round(MAX_RATIO * 100)}
-          aria-valuetext={`Transcript panel ${Math.round(ratio * 100)} percent`}
-          aria-label="Resize transcript and summary"
+          aria-valuetext={`转写稿面板占 ${Math.round(ratio * 100)}%`}
+          aria-label="调整转写稿与纪要的宽度"
           tabIndex={0}
           className="group relative z-10 hidden w-2 flex-shrink-0 cursor-col-resize items-stretch justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset md:flex"
           onPointerDown={onPointerDown}

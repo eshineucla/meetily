@@ -130,14 +130,14 @@ export function useRecordingStart(
       if (!modelReady) {
         const isDownloading = await checkIfModelDownloading();
         if (isDownloading) {
-          toast.info('Model download in progress', {
-            description: 'Please wait for the transcription model to finish downloading before recording.',
+          toast.info('模型正在下载', {
+            description: '请等待转写模型下载完成后再录音。',
             duration: 5000,
           });
           Analytics.trackButtonClick('start_recording_blocked_downloading', 'home_page');
         } else {
-          toast.error('Transcription model not ready', {
-            description: 'Please download a transcription model before recording.',
+          toast.error('转写模型未就绪', {
+            description: '录音前请先下载转写模型。',
             duration: 5000,
           });
           showModal?.('modelSelector', 'Transcription model setup required');
@@ -191,7 +191,7 @@ export function useRecordingStart(
 
       const isRuntimeError = isTranscriptionRuntimeStartError(error);
       if (errorMsg.includes('Recording start timed out')) {
-        toast.error('Recording start timed out — please try again');
+        toast.error('开始录音超时，请重试');
       }
 
       setStatus(RecordingStatus.ERROR, isRuntimeError
@@ -222,14 +222,14 @@ export function useRecordingStart(
           if (!modelReady) {
             const isDownloading = await checkIfModelDownloading();
             if (isDownloading) {
-              toast.info('Model download in progress', {
-                description: 'Please wait for the transcription model to finish downloading before recording.',
+              toast.info('模型正在下载', {
+                description: '请等待转写模型下载完成后再录音。',
                 duration: 5000,
               });
               Analytics.trackButtonClick('start_recording_blocked_downloading', 'sidebar_auto');
             } else {
-              toast.error('Transcription model not ready', {
-                description: 'Please download a transcription model before recording.',
+              toast.error('转写模型未就绪', {
+                description: '录音前请先下载转写模型。',
                 duration: 5000,
               });
               showModal?.('modelSelector', 'Transcription model setup required');
@@ -321,14 +321,14 @@ export function useRecordingStart(
       if (!modelReady) {
         const isDownloading = await checkIfModelDownloading();
         if (isDownloading) {
-          toast.info('Model download in progress', {
-            description: 'Please wait for the transcription model to finish downloading before recording.',
+          toast.info('模型正在下载', {
+            description: '请等待转写模型下载完成后再录音。',
             duration: 5000,
           });
           Analytics.trackButtonClick('start_recording_blocked_downloading', 'sidebar_direct');
         } else {
-          toast.error('Transcription model not ready', {
-            description: 'Please download a transcription model before recording.',
+          toast.error('转写模型未就绪', {
+            description: '录音前请先下载转写模型。',
             duration: 5000,
           });
           showModal?.('modelSelector', 'Transcription model setup required');

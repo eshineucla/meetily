@@ -29,11 +29,11 @@ export function About() {
             if (info.available) {
                 setShowUpdateDialog(true);
             } else {
-                toast.success('You are running the latest version');
+                toast.success('当前已是最新版本');
             }
         } catch (error: any) {
             console.error('Failed to check for updates:', error);
-            toast.error('Failed to check for updates: ' + (error.message || 'Unknown error'));
+            toast.error('检查更新失败：' + (error.message || '未知错误'));
         } finally {
             setIsChecking(false);
         }
@@ -46,7 +46,7 @@ export function About() {
                 <div className="mb-3">
                     <Image
                         src="icon_128x128.png"
-                        alt="Meetily Logo"
+                        alt="会议纪要标志"
                         width={64}
                         height={64}
                         className="mx-auto"
@@ -55,7 +55,7 @@ export function About() {
                 {/* <h1 className="text-xl font-bold text-gray-900">Meetily</h1> */}
                 <span className="text-sm text-gray-500"> v{currentVersion}</span>
                 <p className="text-medium text-gray-600 mt-1">
-                    Real-time notes and summaries that never leave your machine.
+                    实时笔记与纪要，数据始终不离开你的电脑。
                 </p>
                 {UPDATES_ENABLED && (
                 <div className="mt-3">
@@ -69,18 +69,18 @@ export function About() {
                         {isChecking ? (
                             <>
                                 <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                Checking...
+                                正在检查…
                             </>
                         ) : (
                             <>
                                 <CheckCircle2 className="h-3 w-3 mr-2" />
-                                Check for Updates
+                                检查更新
                             </>
                         )}
                     </Button>
                     {updateInfo?.available && (
                         <div className="mt-2 text-xs text-blue-600">
-                            Update available: v{updateInfo.version}
+                            有可用更新：v{updateInfo.version}
                         </div>
                     )}
                 </div>
@@ -89,23 +89,23 @@ export function About() {
 
             {/* Features Grid - Compact */}
             <div className="space-y-3">
-                <h2 className="text-base font-semibold text-gray-800">What makes Meetily different</h2>
+                <h2 className="text-base font-semibold text-gray-800">会议纪要有何不同</h2>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Privacy-first</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Your data & AI processing workflow can now stay within your premise. No cloud, no leaks.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">隐私优先</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">你的数据和 AI 处理流程都可以留在本地，不上云，不泄露。</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Use Any Model</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Prefer local open-source model? Great. Want to plug in an external API? Also fine. No lock-in.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">任选模型</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">想用本地开源模型？可以。想接入外部 API？也行。不受任何绑定。</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Cost-Smart</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Avoid pay-per-minute bills by running models locally (or pay only for the calls you choose).</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">节省成本</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">在本地运行模型，免去按分钟计费（或只为你选择的调用付费）。</p>
                     </div>
                     <div className="bg-gray-50 rounded p-3 hover:bg-gray-100 transition-colors">
-                        <h3 className="font-bold text-sm text-gray-900 mb-1">Works everywhere</h3>
-                        <p className="text-xs text-gray-600 leading-relaxed">Google Meet, Zoom, Teams-online or offline.</p>
+                        <h3 className="font-bold text-sm text-gray-900 mb-1">随处可用</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">Google Meet、Zoom、Teams，在线或离线均可。</p>
                     </div>
                 </div>
             </div>
@@ -113,7 +113,7 @@ export function About() {
             {/* Coming Soon - Compact */}
             <div className="bg-blue-50 rounded p-3">
                 <p className="text-s text-blue-800">
-                    <span className="font-bold">Coming soon:</span> A library of on-device AI agents-automating follow-ups, action tracking, and more.
+                    <span className="font-bold">即将推出：</span>一系列在本机运行的 AI 智能体，自动完成会后跟进、待办跟踪等工作。
                 </p>
             </div>
 

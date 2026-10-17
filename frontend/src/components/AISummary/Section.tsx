@@ -77,7 +77,7 @@ export const Section: React.FC<SectionProps> = ({
             onClick={() => onSectionDelete(sectionKey)}
             className="text-gray-400 hover:text-gray-600"
           >
-            Delete
+            删除
           </button>
         )}
       </div>

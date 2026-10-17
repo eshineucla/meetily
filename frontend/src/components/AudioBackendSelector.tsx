@@ -45,7 +45,7 @@ export function AudioBackendSelector({
         }
       } catch (err) {
         console.error('Failed to load audio backends:', err);
-        setError('Failed to load backend options');
+        setError('加载音频后端选项失败');
       } finally {
         setLoading(false);
       }
@@ -69,7 +69,7 @@ export function AudioBackendSelector({
       console.log(`Audio backend changed to: ${backendId}`);
     } catch (err) {
       console.error('Failed to set audio backend:', err);
-      setError('Failed to change backend. Please try again.');
+      setError('切换音频后端失败，请重试。');
     }
   };
 
@@ -92,7 +92,7 @@ export function AudioBackendSelector({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium text-gray-700">
-          System Audio Backend
+          系统音频后端
         </label>
         <div className="relative">
           <button
@@ -105,16 +105,16 @@ export function AudioBackendSelector({
           </button>
           {showTooltip && (
             <div className="absolute z-10 left-6 top-0 w-64 p-3 text-xs bg-gray-900 text-white rounded-lg shadow-lg">
-              <p className="font-semibold mb-1">Audio Capture Methods:</p>
+              <p className="font-semibold mb-1">音频捕获方式：</p>
               <ul className="space-y-1">
                 {backends.map((backend) => (
                   <li key={backend.id}>
-                    <span className="font-medium">{backend.name}:</span> {backend.description}
+                    <span className="font-medium">{backend.name}：</span> {backend.description}
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-gray-300">
-                Try different backends to find which works best for your system.
+                可尝试不同的后端，找到最适合你系统的一种。
               </p>
             </div>
           )}
@@ -158,12 +158,12 @@ export function AudioBackendSelector({
                   </span>
                   {currentBackend === backend.id && (
                     <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
-                      Active
+                      当前使用
                     </span>
                   )}
                   {isCoreAudio && (
                     <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                      Disabled
+                      已停用
                     </span>
                   )}
                 </div>
@@ -175,9 +175,9 @@ export function AudioBackendSelector({
       </div>
 
       <div className="text-xs text-gray-500 space-y-1">
-        <p>• Backend selection only affects system audio capture</p>
-        <p>• Microphone always uses the default method</p>
-        <p>• Changes apply to new recording sessions</p>
+        <p>• 后端选择仅影响系统音频捕获</p>
+        <p>• 麦克风始终使用默认方式</p>
+        <p>• 更改将在新的录音中生效</p>
       </div>
     </div>
   );
