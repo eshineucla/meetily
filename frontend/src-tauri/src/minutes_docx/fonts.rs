@@ -76,6 +76,11 @@ impl FontResolver {
         self.installed.as_ref().is_some_and(|list| list.iter().any(|f| *f == target))
     }
 
+    /// Whether `font` is installed; false when the check is unavailable
+    pub fn is_installed_name(&self, font: &str) -> bool {
+        self.is_installed(font)
+    }
+
     /// The font to write for `font`: itself, or the first installed fallback,
     /// or the end of the chain when nothing in it is installed
     pub fn resolve(&self, font: &str) -> String {

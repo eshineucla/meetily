@@ -6,6 +6,7 @@ import { FolderOpen } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import Analytics from "@/lib/analytics"
 import AnalyticsConsentSwitch from "./AnalyticsConsentSwitch"
+import { MinutesTemplateSettings } from "./MinutesTemplateSettings"
 import { ANALYTICS_ENABLED } from "@/config/features"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
 
@@ -159,6 +160,8 @@ export function PreferenceSettings() {
           <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
         </div>
       </div>
+
+      <MinutesTemplateSettings />
 
       {/* Data Storage Locations Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
