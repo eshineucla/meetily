@@ -8,9 +8,9 @@
 //! - A4, margins top 37 mm / bottom 35 mm / left 28 mm / right 26 mm
 //! - title 二号 方正小标宋简体, centered, not bold
 //! - headings numbered 一、 / （一） / 1. in 黑体 / 楷体_GB2312 / 仿宋_GB2312 bold, 三号
-//! - body 三号 仿宋_GB2312, exact 28.8 pt line spacing, first line indented 2 characters
+//! - body 三号 仿宋_GB2312, 22 lines × 28 characters per page, first line indented 2 characters
 //! - tables 小四, header 黑体 bold, zero indent, full borders, header row repeats
-//! - page number as a PAGE field in the footer
+//! - page number "— 1 —" in 四号 宋体 7 mm below the type area, odd pages right, even pages left
 //! - Latin text in Times New Roman; every run sets ascii/hAnsi/eastAsia/cs fonts
 
 pub mod commands;
@@ -23,8 +23,17 @@ use regex::Regex;
 use std::io::{Cursor, Write};
 use std::sync::LazyLock;
 
-/// Exact line spacing that gives 22 lines per page in the GB/T 9704 type area
-const BODY_LINE_SPACING_PT: f64 = 28.8;
+/// Exact line spacing for 22 lines per page: the 225 mm type area is 12756 twips, and
+/// 22 × 579 = 12738 still fits, so the 22nd line is not pushed to the next page
+const BODY_LINE_SPACING_PT: f64 = 28.95;
+/// 28 characters per line: the 156 mm type area is 442.2 pt, but 28 三号 (16 pt) characters
+/// take 448 pt, so body characters are condensed by 0.25 pt (5 twips) to 15.75 pt each (441 pt).
+/// Plain character spacing renders the same in Word, WPS and LibreOffice, unlike a character grid.
+const BODY_CHAR_SPACING_TWIPS: i32 = -5;
+/// GB/T 9704 7.5: the page number's top sits 7 mm (397 twips) below the type area. Word measures
+/// the footer distance to the bottom of the footer line, so subtract the 18 pt (360 twips) line too.
+const PAGE_NUMBER_LINE_TWIPS: u32 = 360;
+const FOOTER_DISTANCE_TWIPS: u32 = 1984 - 397 - PAGE_NUMBER_LINE_TWIPS;
 const LATIN_FONT: &str = "Times New Roman";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,6 +61,8 @@ struct GbStyle {
     align: Align,
     first_line_indent_chars: u32,
     line_spacing_pt: Option<f64>,
+    /// Condensed to fit 28 characters per line; titles and tables keep normal spacing
+    condensed: bool,
 }
 
 const TITLE: GbStyle = GbStyle {
@@ -61,6 +72,7 @@ const TITLE: GbStyle = GbStyle {
     align: Align::Center,
     first_line_indent_chars: 0,
     line_spacing_pt: None,
+    condensed: false,
 };
 const H1: GbStyle = GbStyle {
     font: "黑体",
@@ -69,6 +81,7 @@ const H1: GbStyle = GbStyle {
     align: Align::Left,
     first_line_indent_chars: 2,
     line_spacing_pt: Some(BODY_LINE_SPACING_PT),
+    condensed: true,
 };
 const H2: GbStyle = GbStyle { font: "楷体_GB2312", ..H1 };
 const H3: GbStyle = GbStyle { font: "仿宋_GB2312", bold: true, ..H1 };
@@ -79,6 +92,7 @@ const BODY: GbStyle = GbStyle {
     align: Align::Justify,
     first_line_indent_chars: 2,
     line_spacing_pt: Some(BODY_LINE_SPACING_PT),
+    condensed: true,
 };
 const TABLE_BODY: GbStyle = GbStyle {
     font: "仿宋_GB2312",
@@ -87,6 +101,7 @@ const TABLE_BODY: GbStyle = GbStyle {
     align: Align::Left,
     first_line_indent_chars: 0,
     line_spacing_pt: None,
+    condensed: false,
 };
 const TABLE_HEAD: GbStyle = GbStyle { font: "黑体", bold: true, ..TABLE_BODY };
 const PAGE_NUMBER_FONT: &str = "宋体";
@@ -345,12 +360,13 @@ fn half_points(pt: f64) -> u32 {
     (pt * 2.0).round() as u32
 }
 
-fn run_properties(east_asia_font: &str, latin_font: &str, size_pt: f64, bold: bool) -> String {
+fn run_properties(east_asia_font: &str, latin_font: &str, size_pt: f64, bold: bool, char_spacing_twips: i32) -> String {
     format!(
-        r#"<w:rPr><w:rFonts w:ascii="{latin}" w:hAnsi="{latin}" w:eastAsia="{ea}" w:cs="{latin}"/>{bold}<w:sz w:val="{sz}"/><w:szCs w:val="{sz}"/></w:rPr>"#,
+        r#"<w:rPr><w:rFonts w:ascii="{latin}" w:hAnsi="{latin}" w:eastAsia="{ea}" w:cs="{latin}"/>{bold}{spacing}<w:sz w:val="{sz}"/><w:szCs w:val="{sz}"/></w:rPr>"#,
         latin = escape_xml(latin_font),
         ea = escape_xml(east_asia_font),
         bold = if bold { r#"<w:b/><w:bCs/>"# } else { r#"<w:b w:val="0"/><w:bCs w:val="0"/>"# },
+        spacing = if char_spacing_twips != 0 { format!(r#"<w:spacing w:val="{char_spacing_twips}"/>"#) } else { String::new() },
         sz = half_points(size_pt),
     )
 }
@@ -391,7 +407,7 @@ impl Writer<'_> {
         } else {
             format!(
                 r#"<w:r>{}<w:t xml:space="preserve">{}</w:t></w:r>"#,
-                run_properties(&font, LATIN_FONT, style.size_pt, style.bold),
+                run_properties(&font, LATIN_FONT, style.size_pt, style.bold, if style.condensed { BODY_CHAR_SPACING_TWIPS } else { 0 }),
                 escape_xml(&self.text(text))
             )
         };
@@ -451,16 +467,21 @@ fn document_xml(body: &str) -> String {
     // A4: 11906 x 16838 twips; margins 37/35/28/26 mm
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>{body}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter1"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="2098" w:right="1474" w:bottom="1984" w:left="1588" w:header="851" w:footer="992" w:gutter="0"/><w:docGrid w:type="lines" w:linePitch="576"/></w:sectPr></w:body></w:document>"#
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>{body}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter1"/><w:footerReference w:type="even" r:id="rIdFooter2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="2098" w:right="1474" w:bottom="1984" w:left="1588" w:header="851" w:footer="{footer}" w:gutter="0"/><w:docGrid w:type="lines" w:linePitch="{pitch}"/></w:sectPr></w:body></w:document>"#,
+        footer = FOOTER_DISTANCE_TWIPS,
+        pitch = (BODY_LINE_SPACING_PT * 20.0).round() as u32,
     )
 }
 
-fn footer_xml(font: &str) -> String {
-    let rpr = run_properties(font, font, PAGE_NUMBER_SIZE_PT, false);
+/// Page number "— 1 —" in 四号 宋体: odd pages on the right, even pages on the left,
+/// each one character (14 pt = 280 twips) in from the edge of the type area (GB/T 9704 7.5)
+fn footer_xml(font: &str, odd: bool) -> String {
+    let rpr = run_properties(font, font, PAGE_NUMBER_SIZE_PT, false, 0);
+    let (jc, left, right) = if odd { ("right", 0, 280) } else { ("left", 280, 0) };
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr>{ind}<w:jc w:val="center"/></w:pPr><w:r>{rpr}<w:t xml:space="preserve">— </w:t></w:r><w:r>{rpr}<w:fldChar w:fldCharType="begin"/></w:r><w:r>{rpr}<w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r>{rpr}<w:fldChar w:fldCharType="separate"/></w:r><w:r>{rpr}<w:t>1</w:t></w:r><w:r>{rpr}<w:fldChar w:fldCharType="end"/></w:r><w:r>{rpr}<w:t xml:space="preserve"> —</w:t></w:r></w:p></w:ftr>"#,
-        ind = indent(0, PAGE_NUMBER_SIZE_PT),
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="{line}" w:lineRule="exact"/><w:ind w:firstLineChars="0" w:firstLine="0" w:left="{left}" w:right="{right}"/><w:jc w:val="{jc}"/></w:pPr><w:r>{rpr}<w:t xml:space="preserve">— </w:t></w:r><w:r>{rpr}<w:fldChar w:fldCharType="begin"/></w:r><w:r>{rpr}<w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r>{rpr}<w:fldChar w:fldCharType="separate"/></w:r><w:r>{rpr}<w:t>1</w:t></w:r><w:r>{rpr}<w:fldChar w:fldCharType="end"/></w:r><w:r>{rpr}<w:t xml:space="preserve"> —</w:t></w:r></w:p></w:ftr>"#,
+        line = PAGE_NUMBER_LINE_TWIPS,
     )
 }
 
@@ -468,18 +489,22 @@ fn styles_xml(body_font: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault>{}</w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>"#,
-        run_properties(body_font, LATIN_FONT, BODY.size_pt, false)
+        run_properties(body_font, LATIN_FONT, BODY.size_pt, false, 0)
     )
 }
 
 const CONTENT_TYPES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>"#;
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>"#;
+
+/// Odd and even pages get different footers (page number right / left)
+const SETTINGS: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:evenAndOddHeaders/></w:settings>"#;
 
 const ROOT_RELS: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
 
 const DOCUMENT_RELS: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>"#;
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/><Relationship Id="rIdFooter2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/></Relationships>"#;
 
 /// Render blocks into the WordprocessingML body
 fn render_body(blocks: &[Block], fonts: &FontResolver, options: &ExportOptions) -> String {
@@ -518,13 +543,16 @@ pub fn render_markdown_to_docx(markdown: &str, fonts: &FontResolver, options: &E
     warnings.extend(fonts.warnings(REQUIRED_FONTS));
 
     let body = render_body(&blocks, fonts, options);
-    let parts: [(&str, String); 6] = [
+    let page_number_font = fonts.resolve(PAGE_NUMBER_FONT);
+    let parts: [(&str, String); 8] = [
         ("[Content_Types].xml", CONTENT_TYPES.to_string()),
         ("_rels/.rels", ROOT_RELS.to_string()),
         ("word/_rels/document.xml.rels", DOCUMENT_RELS.to_string()),
         ("word/document.xml", document_xml(&body)),
         ("word/styles.xml", styles_xml(&fonts.resolve(BODY.font))),
-        ("word/footer1.xml", footer_xml(&fonts.resolve(PAGE_NUMBER_FONT))),
+        ("word/settings.xml", SETTINGS.to_string()),
+        ("word/footer1.xml", footer_xml(&page_number_font, true)),
+        ("word/footer2.xml", footer_xml(&page_number_font, false)),
     ];
 
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -606,7 +634,9 @@ mod tests {
         assert!(document.contains(r#"w:eastAsia="方正小标宋简体""#));
         assert!(document.contains(r#"<w:sz w:val="44"/>"#), "title is 二号");
         assert!(document.contains("一、会议概况"));
-        assert!(document.contains(r#"w:line="576" w:lineRule="exact""#), "body line spacing 28.8 pt");
+        assert!(document.contains(r#"w:line="579" w:lineRule="exact""#), "body line spacing, 22 lines per page");
+        assert!(document.contains(r#"<w:spacing w:val="-5"/>"#), "body condensed to 28 characters per line");
+        assert!(document.contains(r#"w:footer="1227""#), "page number 7 mm below the type area");
         assert!(document.contains(r#"w:firstLineChars="200" w:firstLine="640""#));
         assert!(document.contains("会议讨论了 API 接口。"));
         // Table cells are never indented
@@ -614,9 +644,13 @@ mod tests {
         assert!(document.contains("<w:tblHeader/>"));
         assert!(document.contains(r#"w:top="2098" w:right="1474" w:bottom="1984" w:left="1588""#));
 
-        let mut footer = String::new();
-        std::io::Read::read_to_string(&mut archive.by_name("word/footer1.xml").unwrap(), &mut footer).unwrap();
-        assert!(footer.contains(" PAGE "));
+        let mut odd = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/footer1.xml").unwrap(), &mut odd).unwrap();
+        assert!(odd.contains(" PAGE ") && odd.contains(r#"<w:jc w:val="right"/>"#) && odd.contains(r#"w:right="280""#));
+        let mut even = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("word/footer2.xml").unwrap(), &mut even).unwrap();
+        assert!(even.contains(" PAGE ") && even.contains(r#"<w:jc w:val="left"/>"#) && even.contains(r#"w:left="280""#));
+        assert!(document.contains(r#"w:type="even" r:id="rIdFooter2""#));
     }
 
     #[test]
