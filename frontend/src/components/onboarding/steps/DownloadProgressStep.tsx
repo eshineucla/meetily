@@ -4,7 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import { Mic, Sparkles, Check, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
-import { useOnboarding, getWhisperModelState } from '@/contexts/OnboardingContext';
+import { useOnboarding, getTranscriptionModelState } from '@/contexts/OnboardingContext';
+import type { ParakeetDownloadProgressEvent } from '@/lib/parakeet';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSummaryModelSizeLabel, getSummaryModelSizeMb } from '@/lib/onboarding-summary-model';
@@ -23,7 +24,10 @@ interface DownloadState {
 export function DownloadProgressStep() {
   const {
     goNext,
+    transcriptionProvider,
     transcriptionModel,
+    summaryChoice,
+    retryTranscriptionDownload,
     selectedSummaryModel,
     recommendedSummaryModel,
     transcriptionDownloaded,
@@ -60,14 +64,24 @@ export function DownloadProgressStep() {
   const transcriptionModelRef = useRef(transcriptionModel);
   transcriptionModelRef.current = transcriptionModel;
 
-  // Show the Whisper model's catalog size
+  const needsTranscriptionDownload = transcriptionProvider !== 'none';
+  const needsSummaryDownload = summaryChoice === 'builtin';
+
+  // Show the chosen model's catalog size
   useEffect(() => {
-    getWhisperModelState(transcriptionModel)
+    getTranscriptionModelState(transcriptionProvider, transcriptionModel)
       .then(({ sizeMb }) => {
         if (sizeMb > 0) setTranscriptionState((prev) => ({ ...prev, totalMb: sizeMb }));
       })
-      .catch((error) => console.warn('[DownloadProgressStep] Failed to read Whisper model size:', error));
-  }, [transcriptionModel]);
+      .catch((error) => console.warn('[DownloadProgressStep] Failed to read transcription model size:', error));
+  }, [transcriptionProvider, transcriptionModel]);
+
+  // The context marks the model ready when it was already on disk (or none was chosen)
+  useEffect(() => {
+    if (transcriptionDownloaded) {
+      setTranscriptionState((prev) => ({ ...prev, status: 'completed', progress: 100 }));
+    }
+  }, [transcriptionDownloaded]);
 
   // Retry download handler
   const handleRetryDownload = async () => {
@@ -77,7 +91,7 @@ export function DownloadProgressStep() {
       return;
     }
 
-    console.log('[DownloadProgressStep] Retrying Whisper download');
+    console.log('[DownloadProgressStep] Retrying transcription model download');
     retryingRef.current = true;
 
     // Reset error state
@@ -91,10 +105,8 @@ export function DownloadProgressStep() {
     }));
 
     try {
-      // Resolves only when the download ends; progress and error events update state
-      invoke('whisper_download_model', { modelName: transcriptionModel }).catch((error) =>
-        console.error('[DownloadProgressStep] Whisper download failed:', error)
-      );
+      // Progress and error events update state
+      await retryTranscriptionDownload();
     } catch (error) {
       console.error('[DownloadProgressStep] Retry failed:', error);
       setTranscriptionState((prev) => ({
@@ -189,7 +201,7 @@ export function DownloadProgressStep() {
       includeTranscription: true,
       includeSummary: false,
     }).catch((error) => {
-      console.error('Failed to start Whisper download:', error);
+      console.error('Failed to start transcription model download:', error);
       if (!transcriptionDownloaded) {
         setTranscriptionState((prev) => ({ ...prev, status: 'error', error: String(error) }));
       }
@@ -199,7 +211,7 @@ export function DownloadProgressStep() {
   // Start the selected summary model only after the backend recommendation is known.
   useEffect(() => {
     if (summaryDownloadStartedRef.current) return;
-    if (!selectedSummaryModel) return;
+    if (!needsSummaryDownload || !selectedSummaryModel) return;
     summaryDownloadStartedRef.current = true;
 
     startSummaryDownload();
@@ -252,6 +264,49 @@ export function DownloadProgressStep() {
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
+      unlistenError.then((fn) => fn());
+    };
+  }, []);
+
+  // Listen to Parakeet download progress (only when Parakeet was chosen)
+  useEffect(() => {
+    const unlistenProgress = listen<ParakeetDownloadProgressEvent>(
+      'parakeet-model-download-progress',
+      (event) => {
+        const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+        if (modelName !== transcriptionModelRef.current) return;
+
+        if (status === 'cancelled') {
+          setTranscriptionState((prev) => ({ ...prev, status: 'cancelled', progress: 0, downloadedMb: 0, speedMbps: 0 }));
+          setTranscriptionDownloaded(false);
+          return;
+        }
+
+        setTranscriptionState((prev) => ({
+          ...prev,
+          status: status === 'completed' ? 'completed' : 'downloading',
+          progress,
+          downloadedMb: downloaded_mb ?? prev.downloadedMb,
+          totalMb: total_mb ?? prev.totalMb,
+          speedMbps: speed_mbps ?? prev.speedMbps,
+        }));
+        if (status === 'completed') {
+          setTranscriptionDownloaded(true);
+        }
+      }
+    );
+
+    const unlistenError = listen<{ modelName: string; error: string }>(
+      'parakeet-model-download-error',
+      (event) => {
+        if (event.payload.modelName === transcriptionModelRef.current) {
+          setTranscriptionState((prev) => ({ ...prev, status: 'error', error: event.payload.error }));
+        }
+      }
+    );
+
+    return () => {
+      unlistenProgress.then((fn) => fn());
       unlistenError.then((fn) => fn());
     };
   }, []);
@@ -337,7 +392,7 @@ export function DownloadProgressStep() {
   const handleContinue = async () => {
     // Verify actual model availability (catches state drift)
     try {
-      const actuallyAvailable = (await getWhisperModelState(transcriptionModel)).available;
+      const actuallyAvailable = (await getTranscriptionModelState(transcriptionProvider, transcriptionModel)).available;
 
       if (actuallyAvailable && !transcriptionDownloaded) {
         console.log('[DownloadProgressStep] Model available but state not updated');
@@ -362,7 +417,7 @@ export function DownloadProgressStep() {
 
     // Check if downloads are complete for toast notification
     const downloadsComplete = transcriptionState.status === 'completed' &&
-      summaryState.status === 'completed';
+      (!needsSummaryDownload || summaryState.status === 'completed');
 
     // Show toast if downloads still in progress
     if (!downloadsComplete) {
@@ -494,27 +549,30 @@ export function DownloadProgressStep() {
       <div className="flex flex-col items-center space-y-6">
         {/* Download Cards */}
         <div className="w-full max-w-lg space-y-4">
-          {renderDownloadCard(
+          {needsTranscriptionDownload && renderDownloadCard(
             'Transcription Engine',
             <Mic className="w-5 h-5 text-gray-600" />,
             transcriptionState,
-            transcriptionState.totalMb > 0
-              ? `Whisper ${transcriptionModel} · ~${transcriptionState.totalMb} MB`
-              : `Whisper ${transcriptionModel}`
+            `${transcriptionProvider === 'parakeet' ? 'Parakeet' : 'Whisper'} ${transcriptionModel}` +
+              (transcriptionState.totalMb > 0 ? ` · ~${transcriptionState.totalMb} MB` : '')
           )}
 
-          {renderDownloadCard(
+          {needsSummaryDownload && renderDownloadCard(
             'Summary Engine',
             <Sparkles className="w-5 h-5 text-gray-600" />,
             summaryState,
             getSummaryModelSizeLabel(selectedSummaryModel || recommendedSummaryModel),
             'MiB'
           )}
+
+          {!needsTranscriptionDownload && !needsSummaryDownload && (
+            <p className="text-sm text-gray-600 text-center">没有需要下载的模型，可以直接继续。</p>
+          )}
         </div>
 
         {/* Info Message - Only show when the transcription model is downloaded */}
         <AnimatePresence>
-          {transcriptionDownloaded && !summaryModelDownloaded && (
+          {transcriptionDownloaded && needsSummaryDownload && !summaryModelDownloaded && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}

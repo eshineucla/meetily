@@ -171,38 +171,47 @@ pub async fn reset_onboarding_status_cmd<R: Runtime>(
 pub async fn complete_onboarding<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
-    model: String,
+    // Built-in AI summary model; None when the user picked another summary provider
+    // (already saved by the frontend) or chose to set one up later
+    model: Option<String>,
+    // "whisper" | "parakeet" | "none"; None keeps the recommended Whisper default
+    transcription_provider: Option<String>,
+    transcription_model: Option<String>,
 ) -> Result<(), String> {
-    info!("Completing onboarding with builtin-ai model: {}", model);
+    info!(
+        "Completing onboarding: summary model={:?}, transcription={:?}/{:?}",
+        model, transcription_provider, transcription_model
+    );
 
     // Step 1: Save model configuration to SQLite database FIRST
     let pool = state.db_manager.pool();
 
-    // Onboarding always uses builtin-ai (local LLM)
-    if let Err(e) = SettingsRepository::save_model_config(
-        pool,
-        "builtin-ai",
-        &model,
-        "large-v3",
-        None,
-    ).await {
-        error!("Failed to save builtin-ai model config: {}", e);
-        return Err(format!("Failed to save builtin-ai model config: {}", e));
+    if let Some(model) = &model {
+        if let Err(e) = SettingsRepository::save_model_config(
+            pool,
+            "builtin-ai",
+            model,
+            "large-v3",
+            None,
+        ).await {
+            error!("Failed to save builtin-ai model config: {}", e);
+            return Err(format!("Failed to save builtin-ai model config: {}", e));
+        }
+        info!("Saved builtin-ai model config: model={}", model);
     }
-    info!("Saved builtin-ai model config: model={}", model);
 
-    // Save transcription model config: local Whisper with the hardware-based recommendation,
-    // the same model the onboarding download step fetched
-    let whisper_model = crate::config::recommended_whisper_model();
-    if let Err(e) = SettingsRepository::save_transcript_config(
-        pool,
-        "localWhisper",
-        whisper_model,
-    ).await {
+    // Save transcription model config. "none" (transcript import only) still stores the
+    // recommended Whisper model, so recording works once the user downloads it later.
+    let (provider, whisper_model) = match (transcription_provider.as_deref(), transcription_model.as_deref()) {
+        (Some("parakeet"), Some(m)) if !m.is_empty() => ("parakeet", m.to_string()),
+        (Some("whisper"), Some(m)) if !m.is_empty() => ("localWhisper", m.to_string()),
+        _ => ("localWhisper", crate::config::recommended_whisper_model().to_string()),
+    };
+    if let Err(e) = SettingsRepository::save_transcript_config(pool, provider, &whisper_model).await {
         error!("Failed to save transcription model config: {}", e);
         return Err(format!("Failed to save transcription model config: {}", e));
     }
-    info!("Saved transcription model config: provider=localWhisper, model={}", whisper_model);
+    info!("Saved transcription model config: provider={}, model={}", provider, whisper_model);
 
     // Step 2: Only NOW mark onboarding as complete (after DB operations succeed)
     let mut status = load_onboarding_status(&app)
@@ -213,13 +222,13 @@ pub async fn complete_onboarding<R: Runtime>(
     status.current_step = 4; // Max step (4 on macOS with permissions, 3 on other platforms)
     status.model_status.parakeet = "downloaded".to_string();
     status.model_status.summary = "downloaded".to_string();
-    status.model_status.selected_summary_model = Some(model.clone());
+    status.model_status.selected_summary_model = model.clone();
 
     save_onboarding_status(&app, &status)
         .await
         .map_err(|e| format!("Failed to save completed onboarding status: {}", e))?;
 
-    info!("Onboarding completed successfully with model: {}", model);
+    info!("Onboarding completed successfully");
     Ok(())
 }
 
