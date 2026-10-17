@@ -144,8 +144,8 @@ export default function RootLayout({
     const betaFeatures = loadBetaFeatures();
 
     if (!betaFeatures.importAndRetranscribe) {
-      toast.error('Beta feature disabled', {
-        description: 'Enable "Import Audio & Retranscribe" in Settings > Beta to use this feature.'
+      toast.error('暂不支持导入音频', {
+        description: `可以拖入文字稿文件（${TRANSCRIPT_EXTENSIONS.map((e) => `.${e}`).join(' / ')}）`
       });
       return;
     }
