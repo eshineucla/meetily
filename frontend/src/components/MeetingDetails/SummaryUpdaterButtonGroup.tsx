@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, Save, Loader2 } from 'lucide-react';
+import { Copy, Save, Loader2, FileDown } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 
 interface SummaryUpdaterButtonGroupProps {
@@ -12,6 +12,8 @@ interface SummaryUpdaterButtonGroupProps {
   onCopy: () => Promise<void>;
   /** Hide saving once the minutes are final */
   readOnly?: boolean;
+  onExportDocx?: () => Promise<void>;
+  isExporting?: boolean;
 }
 
 export function SummaryUpdaterButtonGroup({
@@ -20,6 +22,8 @@ export function SummaryUpdaterButtonGroup({
   onSave,
   onCopy,
   readOnly = false,
+  onExportDocx,
+  isExporting = false,
 }: SummaryUpdaterButtonGroupProps) {
   return (
     <ButtonGroup>
@@ -62,6 +66,19 @@ export function SummaryUpdaterButtonGroup({
         <Copy />
         <span className="hidden @[40rem]:inline">复制</span>
       </Button>
+
+      {onExportDocx && (
+        <Button
+          variant="outline"
+          size="sm"
+          title="按公文格式导出 Word 文档"
+          onClick={() => onExportDocx()}
+          disabled={isExporting}
+        >
+          {isExporting ? <Loader2 className="animate-spin" /> : <FileDown />}
+          <span className="hidden @[40rem]:inline">导出 Word</span>
+        </Button>
+      )}
 
     </ButtonGroup>
   );

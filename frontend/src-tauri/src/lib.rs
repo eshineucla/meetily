@@ -53,6 +53,7 @@ pub mod state;
 pub mod summary;
 pub mod tray;
 pub mod transcript_import;
+pub mod minutes_docx;
 pub mod utils;
 pub mod whisper_engine;
 
@@ -834,6 +835,7 @@ pub fn run() {
             transcript_import::select_transcript_file_command,
             transcript_import::read_transcript_file_command,
             transcript_import::import_transcript_text_command,
+            minutes_docx::commands::export_minutes_docx_command,
             audio::import::select_and_validate_audio_command,
             audio::import::validate_audio_file_command,
             audio::import::start_import_audio_command,
