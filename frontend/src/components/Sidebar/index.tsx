@@ -38,6 +38,7 @@ interface SidebarItem {
   title: string;
   type: 'folder' | 'file';
   children?: SidebarItem[];
+  finalized?: boolean;
 }
 
 const Sidebar: React.FC = () => {
@@ -647,6 +648,15 @@ const Sidebar: React.FC = () => {
                   </div>
                 )}
                 <span className="flex-1 break-words">{item.title}</span>
+                {isMeetingItem && (
+                  <span
+                    className={`flex-shrink-0 ml-1 px-1.5 py-0.5 rounded text-[10px] leading-none font-normal ${
+                      item.finalized ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {item.finalized ? '已定稿' : '草稿'}
+                  </span>
+                )}
                 {isMeetingItem && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <button

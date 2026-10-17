@@ -744,6 +744,10 @@ pub fn run() {
             // Summary commands
             summary::commands::api_process_transcript,
             summary::commands::api_get_summary,
+            summary::commands::api_list_summary_versions,
+            summary::commands::api_restore_summary_version,
+            summary::commands::api_get_meeting_finalized,
+            summary::commands::api_set_meeting_finalized,
             summary::commands::api_save_meeting_summary,
             summary::commands::api_get_meeting_summary_language,
             summary::commands::api_save_meeting_summary_language,

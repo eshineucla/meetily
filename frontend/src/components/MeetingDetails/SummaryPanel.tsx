@@ -9,7 +9,8 @@ import { SummaryUpdaterButtonGroup } from './SummaryUpdaterButtonGroup';
 import Analytics from '@/lib/analytics';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
-import { Languages, ChevronDown } from 'lucide-react';
+import { Languages, ChevronDown, History, Lock, LockOpen, Loader2 } from 'lucide-react';
+import { SummaryVersionsDialog } from './SummaryVersionsDialog';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguagePickerPopover } from '@/components/LanguagePickerPopover';
@@ -54,6 +55,11 @@ interface SummaryPanelProps {
   onTemplateSelect: (templateId: string, templateName: string) => void;
   isModelConfigLoading?: boolean;
   onOpenModelSettings?: (openFn: () => void) => void;
+  /** The minutes are final: read-only, no regeneration */
+  isFinalized: boolean;
+  onSetFinalized: (finalized: boolean) => Promise<void>;
+  /** Reload the summary after a saved version was restored */
+  onSummaryRestored: () => Promise<void>;
 }
 
 export function SummaryPanel({
@@ -84,7 +90,14 @@ export function SummaryPanel({
   onTemplateSelect,
   isModelConfigLoading = false,
   onOpenModelSettings,
+  isFinalized,
+  onSetFinalized,
+  onSummaryRestored,
 }: SummaryPanelProps) {
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [isTogglingFinal, setIsTogglingFinal] = useState(false);
+  // Bumped after a restore so the editor reloads the restored content
+  const [editorKey, setEditorKey] = useState(0);
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -246,7 +259,7 @@ export function SummaryPanel({
       {/* Top-level actions — always visible, same pattern as TranscriptPanel */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-center w-full min-w-0 gap-2 flex-wrap">
-          <div className="flex-shrink-0 min-w-0">
+          {!isFinalized && <div className="flex-shrink-0 min-w-0">
             <SummaryGeneratorButtonGroup
               modelConfig={modelConfig}
               setModelConfig={setModelConfig}
@@ -264,7 +277,7 @@ export function SummaryPanel({
               onOpenModelSettings={onOpenModelSettings}
               languageSlot={transcripts.length > 0 || hasSummary ? languageSlot : undefined}
             />
-          </div>
+          </div>}
 
           {hasSummary && !isSummaryLoading && (
             <div className="flex-shrink-0">
@@ -273,11 +286,52 @@ export function SummaryPanel({
                 isDirty={isSummaryDirty}
                 onSave={onSaveAll}
                 onCopy={onCopySummary}
+                readOnly={isFinalized}
               />
             </div>
           )}
+
+          {hasSummary && !isSummaryLoading && (
+            <div className="flex-shrink-0 flex gap-2">
+              <Button variant="outline" size="sm" title="查看、对比和恢复以前生成的纪要" onClick={() => setVersionsOpen(true)}>
+                <History />
+                <span className="hidden @[40rem]:inline">版本</span>
+              </Button>
+              <Button
+                variant={isFinalized ? 'outline' : 'default'}
+                size="sm"
+                title={isFinalized ? '取消定稿后才能修改或重新生成' : '定稿后纪要只读'}
+                disabled={isTogglingFinal}
+                onClick={async () => {
+                  setIsTogglingFinal(true);
+                  try {
+                    await onSetFinalized(!isFinalized);
+                  } finally {
+                    setIsTogglingFinal(false);
+                  }
+                }}
+              >
+                {isTogglingFinal ? <Loader2 className="animate-spin" /> : isFinalized ? <LockOpen /> : <Lock />}
+                <span className="hidden @[40rem]:inline">{isFinalized ? '取消定稿' : '定稿'}</span>
+              </Button>
+            </div>
+          )}
         </div>
+        {isFinalized && (
+          <p className="mt-3 text-center text-xs text-green-700">纪要已定稿，当前为只读。要修改或重新生成，请先取消定稿。</p>
+        )}
       </div>
+
+      <SummaryVersionsDialog
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        meetingId={meeting.id}
+        readOnly={isFinalized}
+        onRestored={async () => {
+          await onSummaryRestored();
+          setEditorKey((key) => key + 1);
+        }}
+      />
 
       {isSummaryLoading ? (
         <div className="flex items-center justify-center flex-1">
@@ -297,7 +351,9 @@ export function SummaryPanel({
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
           <div className="p-6 w-full">
             <BlockNoteSummaryView
+              key={editorKey}
               ref={summaryRef}
+              editable={!isFinalized}
               summaryData={aiSummary}
               onSave={onSaveSummary}
               onSummaryChange={onSummaryChange}

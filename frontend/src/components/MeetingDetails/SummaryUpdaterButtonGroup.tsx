@@ -10,6 +10,8 @@ interface SummaryUpdaterButtonGroupProps {
   isDirty: boolean;
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
+  /** Hide saving once the minutes are final */
+  readOnly?: boolean;
 }
 
 export function SummaryUpdaterButtonGroup({
@@ -17,11 +19,12 @@ export function SummaryUpdaterButtonGroup({
   isDirty,
   onSave,
   onCopy,
+  readOnly = false,
 }: SummaryUpdaterButtonGroupProps) {
   return (
     <ButtonGroup>
       {/* Save button */}
-      <Button
+      {!readOnly && <Button
         variant="outline"
         size="sm"
         className={`${isDirty ? 'bg-green-200' : ""}`}
@@ -43,7 +46,7 @@ export function SummaryUpdaterButtonGroup({
             <span className="hidden @[40rem]:inline">保存</span>
           </>
         )}
-      </Button>
+      </Button>}
 
       {/* Copy button */}
       <Button

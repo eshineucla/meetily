@@ -1,6 +1,7 @@
 use crate::database::repositories::{
     meeting::MeetingsRepository,
-    summary::SummaryProcessesRepository, transcript_chunk::TranscriptChunksRepository,
+    summary::SummaryProcessesRepository, summary_version::SummaryVersionsRepository,
+    transcript_chunk::TranscriptChunksRepository,
 };
 use crate::state::AppState;
 use crate::summary::metadata::{
@@ -107,6 +108,7 @@ pub async fn api_save_meeting_summary<R: Runtime>(
         return Err("Summary contains no visible content or model reasoning markers and was not saved.".into());
     }
     let pool = state.db_manager.pool();
+    ensure_not_finalized(pool, &meeting_id).await?;
 
 
     match SummaryProcessesRepository::update_meeting_summary(pool, &meeting_id, &summary).await {
@@ -483,6 +485,7 @@ pub async fn api_process_transcript<R: Runtime>(
     );
 
     let pool = state.db_manager.pool().clone();
+    ensure_not_finalized(&pool, &m_id).await?;
     let final_prompt = custom_prompt.unwrap_or_else(|| "".to_string());
     let final_template_id = template_id.unwrap_or_else(|| "daily_standup".to_string());
 
@@ -652,5 +655,110 @@ mod tests {
         }));
         assert_eq!(redacted["markdown"], "Visible\n\nTail");
         assert_eq!(redacted["reasoning_stripped"], true);
+    }
+}
+
+const FINALIZED_ERROR: &str = "纪要已定稿，请先取消定稿再修改";
+
+/// Refuse to change the summary of a meeting whose minutes are final
+async fn ensure_not_finalized(pool: &sqlx::SqlitePool, meeting_id: &str) -> Result<(), String> {
+    match MeetingsRepository::get_finalized_at(pool, meeting_id).await {
+        Ok(Some(_)) => Err(FINALIZED_ERROR.to_string()),
+        Ok(None) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SummaryVersionInfo {
+    pub version: i64,
+    pub created_at: String,
+    pub source: String,
+    /// The summary's markdown, for preview and comparison
+    pub markdown: String,
+}
+
+/// Lists the saved versions of a meeting's summary, newest first
+#[tauri::command]
+pub async fn api_list_summary_versions(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<Vec<SummaryVersionInfo>, String> {
+    let versions = SummaryVersionsRepository::list(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(versions
+        .into_iter()
+        .map(|v| {
+            let markdown = serde_json::from_str::<serde_json::Value>(&v.result)
+                .ok()
+                .and_then(|json| json.get("markdown").and_then(|m| m.as_str()).map(str::to_string))
+                .unwrap_or_default();
+            SummaryVersionInfo {
+                version: v.version,
+                created_at: v.created_at,
+                source: v.source,
+                markdown,
+            }
+        })
+        .collect())
+}
+
+/// Makes a saved version the meeting's current summary
+#[tauri::command]
+pub async fn api_restore_summary_version(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    version: i64,
+) -> Result<(), String> {
+    let pool = state.db_manager.pool();
+    ensure_not_finalized(pool, &meeting_id).await?;
+
+    if let Ok(Some(process)) = SummaryProcessesRepository::get_summary_data(pool, &meeting_id).await {
+        if process.status.eq_ignore_ascii_case("pending") || process.status.eq_ignore_ascii_case("processing") {
+            return Err("纪要正在生成，请等生成结束后再恢复".to_string());
+        }
+    }
+
+    let saved = SummaryVersionsRepository::get(pool, &meeting_id, version)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("找不到第 {} 版纪要", version))?;
+    match SummaryVersionsRepository::restore(pool, &meeting_id, &saved.result).await {
+        Ok(true) => {
+            log_info!("Restored summary version {} for meeting {}", version, meeting_id);
+            Ok(())
+        }
+        Ok(false) => Err("Meeting has no summary to restore into".to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Whether the meeting's minutes are final (read-only)
+#[tauri::command]
+pub async fn api_get_meeting_finalized(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<bool, String> {
+    MeetingsRepository::get_finalized_at(state.db_manager.pool(), &meeting_id)
+        .await
+        .map(|at| at.is_some())
+        .map_err(|e| e.to_string())
+}
+
+/// Marks the meeting's minutes final, or back to draft
+#[tauri::command]
+pub async fn api_set_meeting_finalized(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    finalized: bool,
+) -> Result<(), String> {
+    match MeetingsRepository::set_finalized(state.db_manager.pool(), &meeting_id, finalized).await {
+        Ok(true) => {
+            log_info!("Meeting {} finalized: {}", meeting_id, finalized);
+            Ok(())
+        }
+        Ok(false) => Err("Meeting not found".to_string()),
+        Err(e) => Err(e.to_string()),
     }
 }

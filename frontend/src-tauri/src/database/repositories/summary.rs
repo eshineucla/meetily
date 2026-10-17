@@ -1,4 +1,5 @@
 use crate::database::models::SummaryProcess;
+use crate::database::repositories::summary_version::SummaryVersionsRepository;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::SqlitePool;
@@ -140,7 +141,7 @@ impl SummaryProcessesRepository {
             WHERE meeting_id = ? AND start_time = ? AND LOWER(status) = 'pending'
             "#
         )
-        .bind(result_str)
+        .bind(&result_str)
         .bind(now)
         .bind(now)
         .bind(chunk_count)
@@ -149,7 +150,15 @@ impl SummaryProcessesRepository {
         .bind(started_at)
         .execute(pool)
         .await?;
-        Ok(update.rows_affected() == 1)
+        if update.rows_affected() != 1 {
+            return Ok(false);
+        }
+
+        // Keep every generated summary so earlier ones can be compared and restored
+        if let Err(e) = SummaryVersionsRepository::add(pool, meeting_id, "generated", &result_str).await {
+            error!("Failed to save summary version for {}: {}", meeting_id, e);
+        }
+        Ok(true)
     }
 
     pub async fn update_process_failed(

@@ -14,11 +14,14 @@ interface SidebarItem {
   title: string;
   type: 'folder' | 'file';
   children?: SidebarItem[];
+  finalized?: boolean;
 }
 
 export interface CurrentMeeting {
   id: string;
   title: string;
+  /** The meeting's minutes are final (read-only) */
+  finalized?: boolean;
 }
 
 // Search result type for transcript search
@@ -97,10 +100,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string }>;
-        const transformedMeetings = meetings.map((meeting: any) => ({
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, finalized: boolean }>;
+        const transformedMeetings = meetings.map((meeting) => ({
           id: meeting.id,
-          title: meeting.title
+          title: meeting.title,
+          finalized: meeting.finalized,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -130,7 +134,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       title: '会议记录',
       type: 'folder' as const,
       children: [
-        ...meetings.map(meeting => ({ id: meeting.id, title: meeting.title, type: 'file' as const }))
+        ...meetings.map(meeting => ({ id: meeting.id, title: meeting.title, type: 'file' as const, finalized: meeting.finalized }))
       ]
     },
   ];

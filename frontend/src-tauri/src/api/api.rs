@@ -30,6 +30,8 @@ pub struct ApiResponse<T> {
 pub struct Meeting {
     pub id: String,
     pub title: String,
+    /// The meeting's minutes are final (read-only)
+    pub finalized: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -336,9 +338,16 @@ pub async fn api_get_meetings<R: Runtime>(
         Ok(meeting_models) => {
             log_info!("Successfully got {} meetings", meeting_models.len());
 
+            let finalized = MeetingsRepository::get_finalized_ids(pool)
+                .await
+                .unwrap_or_else(|e| {
+                    log_error!("Error getting finalized meetings: {}", e);
+                    Default::default()
+                });
             let result: Vec<Meeting> = meeting_models
                 .into_iter()
                 .map(|m| Meeting {
+                    finalized: finalized.contains(&m.id),
                     id: m.id,
                     title: m.title,
                 })
