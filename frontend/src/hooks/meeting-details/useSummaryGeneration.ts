@@ -47,9 +47,20 @@ async function resolveSummaryLanguage(
         description: 'Pick a summary language manually if Auto chooses the wrong fallback.',
       });
     }
-    return detection.language;
+    return detection.language ?? transcriptionLanguageFallback();
   } catch (err) {
     console.warn('Failed to detect transcript summary language:', err);
+    return transcriptionLanguageFallback();
+  }
+}
+
+// When detection is inconclusive, a Chinese transcription language still means a
+// Chinese summary rather than the English default.
+function transcriptionLanguageFallback(): string | null {
+  try {
+    const language = localStorage.getItem('primaryLanguage') ?? 'zh';
+    return language === 'zh' ? 'zh' : null;
+  } catch {
     return null;
   }
 }
