@@ -4,8 +4,23 @@
 /// Used across database initialization, import, and retranscription.
 
 /// Default Whisper model for transcription when no preference is configured.
-/// This is the recommended balance of accuracy and speed.
-pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo";
+/// Quantized large-v3-turbo: good Mandarin accuracy at ~550 MB.
+pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo-q5_0";
+
+/// Whisper model recommended instead of the default on low-end, CPU-only machines.
+pub const LOW_END_WHISPER_MODEL: &str = "medium-q5_0";
+
+/// Initial prompt for Mandarin transcription. Whisper follows the prompt's script and
+/// punctuation, so this steers output to Simplified Chinese with punctuation.
+pub const ZH_INITIAL_PROMPT: &str = "以下是普通话会议的记录，使用简体中文和标点符号。";
+
+/// Whisper model to recommend for new installs, based on the detected hardware tier.
+pub fn recommended_whisper_model() -> &'static str {
+    match crate::audio::HardwareProfile::detect().performance_tier {
+        crate::audio::PerformanceTier::Low => LOW_END_WHISPER_MODEL,
+        _ => DEFAULT_WHISPER_MODEL,
+    }
+}
 
 /// Default Parakeet model for transcription when no preference is configured.
 /// This is the quantized version optimized for speed.

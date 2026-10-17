@@ -5,9 +5,9 @@
 
 /**
  * Default Whisper model for transcription when no preference is configured.
- * This is the recommended balance of accuracy and speed.
+ * Quantized large-v3-turbo: good Mandarin accuracy at ~550 MB.
  */
-export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo';
+export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo-q5_0';
 
 /**
  * Default Parakeet model for transcription when no preference is configured.

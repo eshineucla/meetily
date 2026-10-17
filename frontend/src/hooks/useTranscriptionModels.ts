@@ -26,9 +26,14 @@ interface TranscriptModelConfig {
  * in ImportAudioDialog and RetranscribeDialog components.
  *
  * @param transcriptModelConfig - User's saved model configuration from context
+ * @param language - Preferred transcription language; for 'zh' a Whisper model is preselected
+ *   because Parakeet has no Chinese support
  * @returns Object containing available models, selected model key, loading state, and fetch function
  */
-export function useTranscriptionModels(transcriptModelConfig: TranscriptModelConfig | undefined) {
+export function useTranscriptionModels(
+  transcriptModelConfig: TranscriptModelConfig | undefined,
+  language?: string
+) {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [selectedModelKey, setSelectedModelKey] = useState<string>('');
   const [loadingModels, setLoadingModels] = useState(false);
@@ -69,7 +74,7 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
         .map((m) => ({
           provider: 'parakeet' as const,
           name: m.name,
-          displayName: `⚡ Parakeet: ${m.name}`,
+          displayName: `⚡ Parakeet: ${m.name}（仅支持英文和欧洲语言）`,
           size_mb: m.size_mb,
         }));
       allModels.push(...availableParakeet);
@@ -91,9 +96,15 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
         (configuredProvider === 'parakeet' && m.provider === 'parakeet' && m.name === configuredModel)
     );
 
+    // Parakeet cannot transcribe Chinese, so prefer Whisper when the language is zh
+    const firstWhisper = allModels.find((m) => m.provider === 'whisper');
+    const preferWhisper = language === 'zh' && configuredMatch?.provider !== 'whisper' && !!firstWhisper;
+
     // Only set default model if user hasn't manually selected one
     if (!userSelectedRef.current) {
-      if (configuredMatch) {
+      if (preferWhisper && firstWhisper) {
+        setSelectedModelKey(`${firstWhisper.provider}:${firstWhisper.name}`);
+      } else if (configuredMatch) {
         // Use the configured model if available
         setSelectedModelKey(`${configuredMatch.provider}:${configuredMatch.name}`);
       } else if (allModels.length > 0) {
@@ -103,7 +114,7 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
     }
 
     setLoadingModels(false);
-  }, [transcriptModelConfig]);
+  }, [transcriptModelConfig, language]);
 
   // Reset user selection tracking (call when dialog opens fresh)
   const resetSelection = useCallback(() => {

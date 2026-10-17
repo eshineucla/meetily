@@ -121,9 +121,9 @@ mod onnx_runtime_tests {
     }
 }
 
-// Global language preference storage (default to "auto-translate" for automatic translation to English)
+// Global language preference storage (default to Mandarin until the frontend syncs the saved choice)
 static LANGUAGE_PREFERENCE: std::sync::LazyLock<StdMutex<String>> =
-    std::sync::LazyLock::new(|| StdMutex::new("auto-translate".to_string()));
+    std::sync::LazyLock::new(|| StdMutex::new("zh".to_string()));
 
 #[derive(Debug, Deserialize)]
 struct RecordingArgs {
@@ -647,6 +647,7 @@ pub fn run() {
             whisper_engine::commands::whisper_get_current_model,
             whisper_engine::commands::whisper_is_model_loaded,
             whisper_engine::commands::whisper_has_available_models,
+            whisper_engine::commands::whisper_get_recommended_model,
             whisper_engine::commands::whisper_validate_model_ready,
             whisper_engine::commands::whisper_transcribe_audio,
             whisper_engine::commands::whisper_get_models_directory,

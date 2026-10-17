@@ -574,6 +574,10 @@ impl WhisperEngine {
         };
         params.set_language(language_code);
         params.set_translate(should_translate);
+        // Mandarin: steer output to Simplified Chinese with punctuation
+        if language_code == Some("zh") {
+            params.set_initial_prompt(crate::config::ZH_INITIAL_PROMPT);
+        }
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
         // The "single timestamp ending - skip entire chunk" optimization incorrectly discards
@@ -691,6 +695,10 @@ impl WhisperEngine {
         };
         params.set_language(language_code);
         params.set_translate(should_translate);
+        // Mandarin: steer output to Simplified Chinese with punctuation
+        if language_code == Some("zh") {
+            params.set_initial_prompt(crate::config::ZH_INITIAL_PROMPT);
+        }
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
         // The "single timestamp ending - skip entire chunk" optimization incorrectly discards

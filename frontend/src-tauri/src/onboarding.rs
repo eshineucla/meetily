@@ -19,7 +19,7 @@ pub struct OnboardingStatus {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ModelStatus {
-    pub parakeet: String,  // "downloaded" | "not_downloaded" | "downloading"
+    pub parakeet: String,  // Transcription model (Whisper since M1-07; key kept for compatibility): "downloaded" | "not_downloaded" | "downloading"
     pub summary: String,   // Generic field for summary model (Qwen 3.5 or legacy Gemma variants)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_summary_model: Option<String>,
@@ -191,16 +191,18 @@ pub async fn complete_onboarding<R: Runtime>(
     }
     info!("Saved builtin-ai model config: model={}", model);
 
-    // Save transcription model config (parakeet provider) - always parakeet
+    // Save transcription model config: local Whisper with the hardware-based recommendation,
+    // the same model the onboarding download step fetched
+    let whisper_model = crate::config::recommended_whisper_model();
     if let Err(e) = SettingsRepository::save_transcript_config(
         pool,
-        "parakeet",
-        crate::config::DEFAULT_PARAKEET_MODEL,
+        "localWhisper",
+        whisper_model,
     ).await {
         error!("Failed to save transcription model config: {}", e);
         return Err(format!("Failed to save transcription model config: {}", e));
     }
-    info!("Saved transcription model config: provider=parakeet, model={}", crate::config::DEFAULT_PARAKEET_MODEL);
+    info!("Saved transcription model config: provider=localWhisper, model={}", whisper_model);
 
     // Step 2: Only NOW mark onboarding as complete (after DB operations succeed)
     let mut status = load_onboarding_status(&app)

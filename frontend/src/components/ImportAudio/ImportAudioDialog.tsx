@@ -92,7 +92,7 @@ export function ImportAudioDialog({
     loadingModels,
     fetchModels,
     resetSelection,
-  } = useTranscriptionModels(transcriptModelConfig);
+  } = useTranscriptionModels(transcriptModelConfig, selectedLanguage);
 
   const handleImportComplete = useCallback((result: ImportResult) => {
     toast.success(`Import complete! ${result.segments_count} segments created.`);
@@ -369,7 +369,7 @@ export function ImportAudioDialog({
                             <span className="text-sm font-medium">Language</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Language selection isn't supported for Parakeet. It always uses automatic detection.
+                            Parakeet 仅支持英文和欧洲语言，不支持中文。转写中文请选择 Whisper 模型。
                           </p>
                         </div>
                       )}
