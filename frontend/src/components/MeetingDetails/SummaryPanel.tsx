@@ -9,8 +9,11 @@ import { SummaryUpdaterButtonGroup } from './SummaryUpdaterButtonGroup';
 import Analytics from '@/lib/analytics';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
-import { Languages, ChevronDown, History, Lock, LockOpen, Loader2 } from 'lucide-react';
+import { Languages, ChevronDown, History, Lock, LockOpen, Loader2, ClipboardCheck } from 'lucide-react';
 import { SummaryVersionsDialog } from './SummaryVersionsDialog';
+import { MinutesCheckPanel } from './MinutesCheckPanel';
+import { checkMinutes, MinutesCheckResult } from '@/lib/minutes-check';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguagePickerPopover } from '@/components/LanguagePickerPopover';
@@ -98,6 +101,57 @@ export function SummaryPanel({
   const [isTogglingFinal, setIsTogglingFinal] = useState(false);
   // Bumped after a restore so the editor reloads the restored content
   const [editorKey, setEditorKey] = useState(0);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<MinutesCheckResult | null>(null);
+  // The check was opened by "定稿", so it offers to finalize
+  const [checkBeforeFinalize, setCheckBeforeFinalize] = useState(false);
+
+  const runCheck = async (): Promise<MinutesCheckResult | null> => {
+    setIsChecking(true);
+    setCheckOpen(true);
+    try {
+      const markdown = (await summaryRef.current?.getMarkdown()) || (aiSummary as { markdown?: string } | null)?.markdown || '';
+      const page = await invoke<{ transcripts: Transcript[] }>('api_get_meeting_transcripts', {
+        meetingId: meeting.id,
+        limit: 1000000,
+        offset: 0,
+      });
+      const result = checkMinutes(markdown, page.transcripts.map((t) => t.text).join('\n'));
+      setCheckResult(result);
+      return result;
+    } catch (error) {
+      console.error('Minutes check failed:', error);
+      toast.error('检查失败', { description: String(error) });
+      setCheckOpen(false);
+      return null;
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const setFinalized = async (finalized: boolean) => {
+    setIsTogglingFinal(true);
+    try {
+      await onSetFinalized(finalized);
+    } finally {
+      setIsTogglingFinal(false);
+    }
+  };
+
+  const handleFinalizeClick = async () => {
+    if (isFinalized) {
+      await setFinalized(false);
+      return;
+    }
+    // Check first; finalize straight away only when nothing is flagged
+    setCheckBeforeFinalize(true);
+    const result = await runCheck();
+    if (result && result.items.length > 0 && result.issueCount === 0) {
+      await setFinalized(true);
+      setCheckOpen(false);
+    }
+  };
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -298,18 +352,24 @@ export function SummaryPanel({
                 <span className="hidden @[40rem]:inline">版本</span>
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                title="检查责任人、完成时限和原文出处"
+                disabled={isChecking}
+                onClick={() => {
+                  setCheckBeforeFinalize(false);
+                  void runCheck();
+                }}
+              >
+                <ClipboardCheck />
+                <span className="hidden @[40rem]:inline">检查</span>
+              </Button>
+              <Button
                 variant={isFinalized ? 'outline' : 'default'}
                 size="sm"
-                title={isFinalized ? '取消定稿后才能修改或重新生成' : '定稿后纪要只读'}
-                disabled={isTogglingFinal}
-                onClick={async () => {
-                  setIsTogglingFinal(true);
-                  try {
-                    await onSetFinalized(!isFinalized);
-                  } finally {
-                    setIsTogglingFinal(false);
-                  }
-                }}
+                title={isFinalized ? '取消定稿后才能修改或重新生成' : '先检查，再定稿；定稿后纪要只读'}
+                disabled={isTogglingFinal || isChecking}
+                onClick={() => void handleFinalizeClick()}
               >
                 {isTogglingFinal ? <Loader2 className="animate-spin" /> : isFinalized ? <LockOpen /> : <Lock />}
                 <span className="hidden @[40rem]:inline">{isFinalized ? '取消定稿' : '定稿'}</span>
@@ -348,6 +408,7 @@ export function SummaryPanel({
           error={summaryError}
         />
       ) : (
+        <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
           <div className="p-6 w-full">
             <BlockNoteSummaryView
@@ -379,6 +440,23 @@ export function SummaryPanel({
               <p className="text-sm font-medium">{getSummaryStatusMessage(summaryStatus)}</p>
             </div>
           )}
+        </div>
+        {checkOpen && (
+          <MinutesCheckPanel
+            result={checkResult}
+            isChecking={isChecking}
+            onClose={() => setCheckOpen(false)}
+            onRecheck={() => void runCheck()}
+            onFinalizeAnyway={
+              checkBeforeFinalize && !isFinalized
+                ? async () => {
+                    await setFinalized(true);
+                    setCheckOpen(false);
+                  }
+                : undefined
+            }
+          />
+        )}
         </div>
       )}
     </div>
