@@ -78,3 +78,4 @@ pnpm run tauri:build:cpu
 | Actions 在 “Sync Certificate to Windows Certificate Store” 一步报 `Invalid credentials` | 勾选了 `Sign the build`。取消勾选重新运行。 |
 | 打包时报找不到 `binaries/llama-helper-x86_64-pc-windows-msvc.exe` | 没有先构建侧车，按上面第 2 步执行。 |
 | 编译 whisper-rs 或 llama-cpp 时报找不到 libclang | 没装 LLVM 或没设 `LIBCLANG_PATH`。 |
+| 导入音频或录音时报“系统找不到指定的文件 (os error 2)”，“音乐”下建不出 `meetily-recordings` 里的会议文件夹 | Windows 安全中心的“受控文件夹访问”（勒索软件防护）拦住了未签名的程序。在“允许应用通过受控文件夹访问”里添加 MeetingMinutes。 |
