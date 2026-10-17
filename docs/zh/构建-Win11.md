@@ -11,6 +11,8 @@
 
 CI 构建出的是 Vulkan 版（GPU 加速转写），要求 CPU 支持 AVX2（不需要 AVX-512）。
 
+macOS 版同理：在 Actions 里选 **Build and Test - macOS**，同样不勾选 `Sign the build`（默认已不勾选）。产物是 Apple Silicon 版 `.dmg`，未签名，首次打开要在 Finder 里右键应用选“打开”。
+
 ## 方式二：Win11 本机从源码构建
 
 ### 1. 安装依赖
