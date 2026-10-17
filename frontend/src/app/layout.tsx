@@ -23,6 +23,7 @@ import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgr
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
+import { OPEN_TRANSCRIPT_IMPORT_EVENT, TRANSCRIPT_EXTENSIONS } from '@/components/ImportTranscript'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 
@@ -129,6 +130,16 @@ export default function RootLayout({
 
   // Handle file drop for audio import
   const handleFileDrop = useCallback((paths: string[]) => {
+    // Transcript files open the transcript import dialog (not a beta feature)
+    const transcriptFile = paths.find(p => {
+      const ext = p.split('.').pop()?.toLowerCase();
+      return !!ext && TRANSCRIPT_EXTENSIONS.includes(ext);
+    });
+    if (transcriptFile) {
+      window.dispatchEvent(new CustomEvent(OPEN_TRANSCRIPT_IMPORT_EVENT, { detail: { path: transcriptFile } }));
+      return;
+    }
+
     // Check if beta features are enabled (read from localStorage directly since we're outside ConfigProvider)
     const betaFeatures = loadBetaFeatures();
 

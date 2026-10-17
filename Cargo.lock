@@ -3628,6 +3628,7 @@ dependencies = [
  "dasp",
  "dirs 5.0.1",
  "ebur128",
+ "encoding_rs",
  "env_logger",
  "esaxx-rs",
  "ffmpeg-sidecar",

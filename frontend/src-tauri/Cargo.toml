@@ -81,6 +81,7 @@ clap = { version = "4.3", features = ["derive"] }
 
 # Dates
 chrono = { version = "0.4.31", features = ["serde"] }
+encoding_rs = "0.8"  # GBK/UTF-16 decoding for imported transcripts
 
 # Log
 log = "0.4"

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, FileText } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
+import { ImportTranscriptDialog, OPEN_TRANSCRIPT_IMPORT_EVENT } from '../ImportTranscript';
 
 import {
   Dialog,
@@ -62,6 +63,22 @@ const Sidebar: React.FC = () => {
   const { openImportDialog } = useImportDialog();
   const { betaFeatures } = useConfig();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
+  const [showTranscriptImport, setShowTranscriptImport] = useState(false);
+  const [transcriptImportFile, setTranscriptImportFile] = useState<string | null>(null);
+
+  const openTranscriptImport = useCallback((filePath: string | null = null) => {
+    setTranscriptImportFile(filePath);
+    setShowTranscriptImport(true);
+  }, []);
+
+  // Opened by a dropped .txt/.md/.srt/.vtt file (see layout.tsx)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      openTranscriptImport((event as CustomEvent<{ path?: string }>).detail?.path ?? null);
+    };
+    window.addEventListener(OPEN_TRANSCRIPT_IMPORT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_TRANSCRIPT_IMPORT_EVENT, handler);
+  }, [openTranscriptImport]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
@@ -509,6 +526,20 @@ const Sidebar: React.FC = () => {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
+                onClick={() => openTranscriptImport()}
+                className="p-2 rounded-lg transition-colors duration-150 hover:bg-gray-100"
+              >
+                <FileText className="w-5 h-5 text-gray-600" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>导入文字稿</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
                 onClick={() => {
                   if (isCollapsed) toggleCollapse();
                   toggleFolder('meetings');
@@ -803,6 +834,14 @@ const Sidebar: React.FC = () => {
             )}
 
             <button
+              onClick={() => openTranscriptImport()}
+              className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors shadow-sm"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              <span>导入文字稿</span>
+            </button>
+
+            <button
               onClick={() => router.push('/settings')}
               className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors shadow-sm"
             >
@@ -875,6 +914,12 @@ const Sidebar: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportTranscriptDialog
+        open={showTranscriptImport}
+        onOpenChange={setShowTranscriptImport}
+        preselectedFile={transcriptImportFile}
+      />
     </div>
   );
 };
