@@ -120,7 +120,7 @@ export function About() {
             {/* Footer - Compact */}
             <div className="pt-2 border-t border-gray-200 text-center">
                 <p className="text-xs text-gray-400">
-                    Built by Zackriya Solutions
+                    基于开源项目 Meetily（MIT 许可）
                 </p>
             </div>
             {ANALYTICS_ENABLED && <AnalyticsConsentSwitch />}
