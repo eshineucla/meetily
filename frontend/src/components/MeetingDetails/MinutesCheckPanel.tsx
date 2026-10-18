@@ -30,7 +30,7 @@ export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFi
           </div>
         ) : result.items.length === 0 ? (
           <p className="text-gray-600">
-            没有找到“议定事项”或“分工落实”之类的章节，无法检查。请用“会议纪要（公文格式）”模板生成纪要。
+            没有找到“会议基本情况”“议定事项”“分工落实”之类的章节，无法检查。请用“会议纪要（公文格式）”或党组会、专题会、协调会、例会纪要模板生成纪要。
           </p>
         ) : (
           <>
@@ -38,7 +38,7 @@ export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFi
               共检查 {result.items.length} 项，{result.issueCount > 0 ? `${result.issueCount} 项有问题` : '都没有问题'}。
             </p>
             <p className="text-xs text-gray-500">
-              规则：任务要有责任人和完成时限；每条事项要注明原文出处，且出处能在记录稿中找到。
+              规则：会议时间、地点、主持人、参会人员、议题要填写；任务要有责任人和完成时限；每条事项要注明原文出处，且出处能在记录稿中找到；不用口语或含糊表述。
             </p>
             {result.items.map((item, index) => (
               <div

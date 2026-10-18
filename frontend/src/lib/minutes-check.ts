@@ -6,15 +6,20 @@
  * - each decision and task needs a source: a verbatim quote from the transcript,
  *   written as （原文：“……”） or in a 原文依据 table column
  * - each quote has to be findable in the transcript
+ * - the basic facts (time, place, chair, attendees, topics) should be filled in, when the minutes
+ *   list them as "项目：内容" lines
+ * - no colloquial or vague wording anywhere (the list from the old workbench's templates)
  */
 
-export type MinutesIssue = 'no-owner' | 'no-deadline' | 'no-source' | 'source-not-found';
+export type MinutesIssue = 'no-owner' | 'no-deadline' | 'no-source' | 'source-not-found' | 'not-filled' | 'colloquial';
 
 export const ISSUE_LABELS: Record<MinutesIssue, string> = {
   'no-owner': '没有责任人',
   'no-deadline': '没有完成时限',
   'no-source': '没有原文出处',
   'source-not-found': '原文片段在记录稿中找不到',
+  'not-filled': '要素未填写',
+  'colloquial': '口语或含糊表述',
 };
 
 export interface CheckedItem {
@@ -30,7 +35,12 @@ export interface MinutesCheckResult {
 }
 
 const DECISION_SECTION = /议定事项|决定|决议|结论|Decision/i;
-const TASK_SECTION = /分工|落实|待办|任务|行动|Action|Next Steps/i;
+const TASK_SECTION = /分工|落实|待办|任务|行动|要求|工作安排|Action|Next Steps/i;
+const BASICS_SECTION = /基本情况|会议概况/;
+const BASIC_FIELD = /^(会议时间|会议地点|主持人|参会人员|出席人员|会议议题)\s*[:：]\s*(.*)$/;
+
+/** Wording that does not belong in minutes */
+export const COLLOQUIAL_PHRASES = ['大家觉得', '差不多', '可能吧', '应该是', '反正', '搞定', '弄一下', '有点问题'];
 
 const OWNER_HEADER = /责任|负责|承办|Owner/i;
 const DEADLINE_HEADER = /时限|期限|截止|完成时间|日期|Due/i;
@@ -99,6 +109,24 @@ export function checkMinutes(markdown: string, transcript: string): MinutesCheck
     const heading = line.match(/^#{1,6}\s+(.*)$/);
     if (heading) {
       section = stripMarkup(heading[1]);
+      i++;
+      continue;
+    }
+
+    const plain = stripMarkup(line.replace(LIST_ITEM, '$1'));
+    // Quotes from the transcript are spoken words, so they don't count
+    const ownWords = plain.replace(/[（(]\s*(?:原文|出处|依据)\s*[:：][^）)]*[）)]/g, '');
+    const colloquial = COLLOQUIAL_PHRASES.filter((phrase) => ownWords.includes(phrase));
+    if (colloquial.length > 0) {
+      items.push({ section, text: `${plain}（${colloquial.join('、')}）`, issues: ['colloquial'] });
+    }
+
+    if (BASICS_SECTION.test(section)) {
+      const field = plain.match(BASIC_FIELD);
+      if (field) {
+        const value = field[2].replace(/[。；;]$/, '');
+        items.push({ section, text: `${field[1]}：${value || '（空）'}`, issues: isEmptyValue(value) ? ['not-filled'] : [] });
+      }
       i++;
       continue;
     }
