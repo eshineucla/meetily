@@ -977,7 +977,7 @@ pub async fn api_save_transcript<R: Runtime>(
     }
 
     // Convert serde_json::Value to TranscriptSegment
-    let transcripts_to_save: Vec<TranscriptSegment> = transcripts
+    let mut transcripts_to_save: Vec<TranscriptSegment> = transcripts
         .into_iter()
         .map(serde_json::from_value)
         .collect::<Result<Vec<_>, _>>()
@@ -994,6 +994,10 @@ pub async fn api_save_transcript<R: Runtime>(
                    first_seg.audio_end_time,
                    first_seg.duration);
     }
+
+    // Live lines were already corrected as they were transcribed; this catches anything else
+    let (glossary_hits, glossary_changed) =
+        crate::glossary::correct_all(transcripts_to_save.iter_mut().map(|s| &mut s.text));
 
     let pool = state.db_manager.pool();
     let segment_count = transcripts_to_save.len();
@@ -1013,6 +1017,7 @@ pub async fn api_save_transcript<R: Runtime>(
                 meeting_id
             );
             crate::audit::record_meeting("meeting_create", &meeting_id, serde_json::json!({ "segments": segment_count })).await;
+            crate::glossary::record_corrections(&meeting_id, &glossary_hits, glossary_changed).await;
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",

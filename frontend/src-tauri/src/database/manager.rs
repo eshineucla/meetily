@@ -34,6 +34,7 @@ impl DatabaseManager {
 
         sqlx::migrate!("./migrations").run(&pool).await?;
         crate::audit::attach_database(pool.clone());
+        crate::glossary::attach_database(pool.clone());
 
         Ok(DatabaseManager { pool })
     }

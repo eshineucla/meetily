@@ -133,7 +133,7 @@ pub async fn import_transcript_text_command(
     };
 
     let timestamp = chrono::Utc::now().to_rfc3339();
-    let segments: Vec<TranscriptSegment> = lines
+    let mut segments: Vec<TranscriptSegment> = lines
         .into_iter()
         .map(|line| TranscriptSegment {
             id: format!("transcript-{}", Uuid::new_v4()),
@@ -144,6 +144,7 @@ pub async fn import_transcript_text_command(
             duration: None,
         })
         .collect();
+    let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));
 
     let meeting_id = TranscriptsRepository::save_transcript(state.db_manager.pool(), &title, &segments, None)
         .await
@@ -154,6 +155,7 @@ pub async fn import_transcript_text_command(
 
     info!("Imported transcript '{}' as {} ({} segments)", title, meeting_id, segments.len());
     crate::audit::record_meeting("import_text", &meeting_id, serde_json::json!({ "segments": segments.len() })).await;
+    crate::glossary::record_corrections(&meeting_id, &glossary_hits, glossary_changed).await;
     Ok(meeting_id)
 }
 

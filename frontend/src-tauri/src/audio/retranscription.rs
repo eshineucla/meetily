@@ -420,7 +420,8 @@ async fn run_retranscription<R: Runtime>(
     emit_progress(&app, &meeting_id, "saving", 80, "Saving transcripts...");
 
     // Create transcript segments with proper timestamps from VAD
-    let segments = create_transcript_segments(&all_transcripts);
+    let mut segments = create_transcript_segments(&all_transcripts);
+    let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));
 
     // Save to database
     let app_state = app
@@ -465,6 +466,7 @@ async fn run_retranscription<R: Runtime>(
         segments.len(),
         meeting_id
     );
+    crate::glossary::record_corrections(&meeting_id, &glossary_hits, glossary_changed).await;
 
     // Write updated transcripts.json and metadata.json to the meeting folder
     emit_progress(&app, &meeting_id, "saving", 90, "Writing transcript files...");

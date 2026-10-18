@@ -636,8 +636,9 @@ async fn run_import<R: Runtime>(
 
     emit_progress(&app, "saving", 85, "Creating meeting...");
 
-    // Create transcript segments
-    let segments = create_transcript_segments(&all_transcripts);
+    // Create transcript segments, with glossary corrections
+    let mut segments = create_transcript_segments(&all_transcripts);
+    let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));
 
     // Save to database
     let app_state = app
@@ -652,6 +653,7 @@ async fn run_import<R: Runtime>(
     )
     .await?;
     crate::audit::record_meeting("import_audio", &meeting_id, serde_json::json!({ "segments": segments.len() })).await;
+    crate::glossary::record_corrections(&meeting_id, &glossary_hits, glossary_changed).await;
 
     // Write transcripts.json and metadata.json to the meeting folder
     emit_progress(&app, "saving", 90, "Writing transcript files...");

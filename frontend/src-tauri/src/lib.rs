@@ -37,6 +37,7 @@ pub(crate) use perf_trace;
 // Declare audio module
 pub mod analytics;
 pub mod audit;
+pub mod glossary;
 pub mod build_variant;
 pub mod api;
 pub mod audio;
@@ -851,6 +852,14 @@ pub fn run() {
             audit::commands::audit_list,
             audit::commands::audit_status,
             audit::commands::audit_export_report,
+            glossary::commands::glossary_list,
+            glossary::commands::glossary_save,
+            glossary::commands::glossary_set_enabled,
+            glossary::commands::glossary_delete,
+            glossary::commands::glossary_import_csv,
+            glossary::commands::glossary_export_csv,
+            glossary::commands::glossary_preview,
+            glossary::commands::glossary_apply_to_meeting,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,

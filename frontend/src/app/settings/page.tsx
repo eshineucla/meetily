@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, ShieldCheck, BookA } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -11,6 +11,7 @@ import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
 import { BetaSettings } from '@/components/BetaSettings';
 import { AuditLogSettings } from '@/components/AuditLogSettings';
+import { GlossarySettings } from '@/components/GlossarySettings';
 import { BETA_FEATURES_ENABLED } from '@/config/features';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -21,6 +22,7 @@ const TABS = [
   { value: 'recording', label: '录音', icon: Mic },
   { value: 'Transcriptionmodels', label: '转写', icon: DatabaseIcon },
   { value: 'summaryModels', label: '纪要', icon: SparkleIcon },
+  { value: 'glossary', label: '术语库', icon: BookA },
   { value: 'audit', label: '审计', icon: ShieldCheck },
   ...(BETA_FEATURES_ENABLED ? [{ value: 'beta', label: '测试版', icon: FlaskConical }] : []),
 ];
@@ -126,6 +128,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
+            </TabsContent>
+            <TabsContent value="glossary" className="mt-6">
+              <GlossarySettings />
             </TabsContent>
             <TabsContent value="audit" className="mt-6">
               <AuditLogSettings />
