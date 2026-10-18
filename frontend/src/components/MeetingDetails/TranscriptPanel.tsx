@@ -46,6 +46,8 @@ interface TranscriptPanelProps {
   isFinalized?: boolean;
   onLineUpdated?: (line: EditedLine) => void;
   onLoadAll?: () => Promise<void>;
+  /** Line to scroll to and highlight, e.g. the source of a decision */
+  focusLine?: { id: string; nonce: number } | null;
 }
 
 export function TranscriptPanel({
@@ -70,6 +72,7 @@ export function TranscriptPanel({
   isFinalized = false,
   onLineUpdated,
   onLoadAll,
+  focusLine,
 }: TranscriptPanelProps) {
   const [reviewOnly, setReviewOnly] = useState(false);
   // Convert transcripts to segments if pagination is not used but we want virtualization
@@ -99,6 +102,18 @@ export function TranscriptPanel({
   }, [reviewOnly, hasMore, onLoadAll]);
 
   useEffect(() => setReviewOnly(false), [meetingId]);
+
+  // The focused line may be filtered out or not loaded yet
+  useEffect(() => {
+    if (!focusLine) return;
+    if (convertedSegments.some((segment) => segment.id === focusLine.id)) {
+      if (reviewOnly && !toReview.some((segment) => segment.id === focusLine.id)) setReviewOnly(false);
+    } else if (hasMore && onLoadAll) {
+      void onLoadAll();
+    }
+    // Only when a new line is asked for
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusLine]);
 
   const review = useMemo<TranscriptReviewActions | undefined>(() => {
     if (!reviewEnabled || !meetingId || !onLineUpdated) return undefined;
@@ -171,6 +186,7 @@ export function TranscriptPanel({
           loadedCount={loadedCount}
           onLoadMore={onLoadMore}
           review={review}
+          focus={focusLine}
         />
         )}
       </div>

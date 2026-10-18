@@ -26,6 +26,8 @@ export interface CheckedItem {
   section: string;
   text: string;
   quote?: string;
+  /** The transcript line the quote comes from, when it could be found */
+  lineId?: string;
   issues: MinutesIssue[];
 }
 
@@ -91,7 +93,47 @@ const isSeparatorRow = (line: string) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)
 
 const LIST_ITEM = /^\s*(?:[-*+]|\d+[.、)）]|[（(]\d+[)）]|[一二三四五六七八九十]+、)\s+(.*)$/;
 
-export function checkMinutes(markdown: string, transcript: string): MinutesCheckResult {
+export interface TranscriptLine {
+  id: string;
+  text: string;
+}
+
+/**
+ * The line a quote comes from: where it starts, when it appears as written (it may run on into
+ * the next lines); otherwise the line that, with the one after it, shares most two-character
+ * pieces with the quote, when that is at least 80% of them (the same tolerance as the check).
+ */
+export function locateQuote(quote: string, lines: TranscriptLine[]): string | undefined {
+  const normalized = normalizeForMatch(quote);
+  if (!normalized) return undefined;
+  const texts = lines.map((line) => normalizeForMatch(line.text));
+  const joined = texts.join('');
+  const at = joined.indexOf(normalized);
+  if (at >= 0) {
+    let end = 0;
+    for (let i = 0; i < texts.length; i++) {
+      end += texts[i].length;
+      if (at < end) return lines[i].id;
+    }
+  }
+  const pieces = bigrams(normalized);
+  if (pieces.length < 4) return undefined;
+  // Ties go to the line holding more of the quote itself
+  let best: { id: string; share: number; own: number } | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    const own = new Set(bigrams(texts[i]));
+    const window = new Set(bigrams(texts[i] + (texts[i + 1] ?? '')));
+    const share = pieces.filter((piece) => window.has(piece)).length / pieces.length;
+    const ownCount = pieces.filter((piece) => own.has(piece)).length;
+    if (share >= 0.8 && (!best || share > best.share || (share === best.share && ownCount > best.own))) {
+      best = { id: lines[i].id, share, own: ownCount };
+    }
+  }
+  return best?.id;
+}
+
+export function checkMinutes(markdown: string, transcriptLines: TranscriptLine[]): MinutesCheckResult {
+  const transcript = transcriptLines.map((line) => line.text).join('\n');
   const normalizedTranscript = normalizeForMatch(transcript);
   const transcriptBigrams = new Set(bigrams(normalizedTranscript));
   const items: CheckedItem[] = [];
@@ -100,6 +142,8 @@ export function checkMinutes(markdown: string, transcript: string): MinutesCheck
     if (!quote || isEmptyValue(quote)) return ['no-source'];
     return quoteFoundIn(quote, normalizedTranscript, transcriptBigrams) ? [] : ['source-not-found'];
   };
+  const located = (quote: string | undefined, issues: MinutesIssue[]) =>
+    quote && !issues.includes('no-source') && !issues.includes('source-not-found') ? locateQuote(quote, transcriptLines) : undefined;
 
   const lines = markdown.split('\n');
   let section = '';
@@ -158,7 +202,7 @@ export function checkMinutes(markdown: string, transcript: string): MinutesCheck
         if (isTask && (ownerCol < 0 || isEmptyValue(cells[ownerCol] ?? ''))) issues.push('no-owner');
         if (isTask && (deadlineCol < 0 || isEmptyValue(cells[deadlineCol] ?? ''))) issues.push('no-deadline');
         issues.push(...sourceIssues(quote));
-        items.push({ section, text, quote, issues });
+        items.push({ section, text, quote, issues, lineId: located(quote, issues) });
       }
       continue;
     }
@@ -174,7 +218,7 @@ export function checkMinutes(markdown: string, transcript: string): MinutesCheck
           if (!/前|内|底|截止|时限|\d+\s*月|\d+\s*日|本周|下周|月底|年底/.test(text)) issues.push('no-deadline');
         }
         issues.push(...sourceIssues(quote));
-        items.push({ section, text, quote, issues });
+        items.push({ section, text, quote, issues, lineId: located(quote, issues) });
       }
     }
     i++;

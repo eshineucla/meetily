@@ -67,6 +67,11 @@ export default function PageContent({
   const { text: customPrompt, setText: setCustomPrompt, saveState: contextSaveState } = useMeetingContext(meeting.id);
   const isRecording = false;
   const [activeTab, setActiveTab] = useState<MeetingDetailsTab>('transcript');
+  const [focusLine, setFocusLine] = useState<{ id: string; nonce: number } | null>(null);
+  const locateLine = (id: string) => {
+    setFocusLine({ id, nonce: Date.now() });
+    setActiveTab('transcript');
+  };
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -264,6 +269,7 @@ export default function PageContent({
               isFinalized={isFinalized}
               onLineUpdated={onLineUpdated}
               onLoadAll={onLoadAll}
+              focusLine={focusLine}
             />
           }
           summary={
@@ -297,6 +303,7 @@ export default function PageContent({
               isModelConfigLoading={isModelConfigLoading}
               onOpenModelSettings={handleRegisterModalOpen}
               isFinalized={isFinalized}
+              onLocateLine={locateLine}
               onSetFinalized={handleSetFinalized}
               onSummaryRestored={handleSummaryRestored}
             />

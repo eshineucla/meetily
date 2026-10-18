@@ -64,6 +64,8 @@ interface SummaryPanelProps {
   onSetFinalized: (finalized: boolean) => Promise<void>;
   /** Reload the summary after a saved version was restored */
   onSummaryRestored: () => Promise<void>;
+  /** Show a transcript line, e.g. the source of a decision */
+  onLocateLine?: (lineId: string) => void;
 }
 
 export function SummaryPanel({
@@ -98,6 +100,7 @@ export function SummaryPanel({
   isFinalized,
   onSetFinalized,
   onSummaryRestored,
+  onLocateLine,
 }: SummaryPanelProps) {
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [isTogglingFinal, setIsTogglingFinal] = useState(false);
@@ -119,7 +122,7 @@ export function SummaryPanel({
         limit: 1000000,
         offset: 0,
       });
-      const result = checkMinutes(markdown, page.transcripts.map((t) => t.text).join('\n'));
+      const result = checkMinutes(markdown, page.transcripts);
       setCheckResult(result);
       return result;
     } catch (error) {
@@ -479,6 +482,7 @@ export function SummaryPanel({
             isChecking={isChecking}
             onClose={() => setCheckOpen(false)}
             onRecheck={() => void runCheck()}
+            onLocateLine={onLocateLine}
             onFinalizeAnyway={
               checkBeforeFinalize && !isFinalized
                 ? async () => {

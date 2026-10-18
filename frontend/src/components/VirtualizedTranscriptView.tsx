@@ -30,6 +30,8 @@ export interface VirtualizedTranscriptViewProps {
     disableAutoScroll?: boolean;
     /** Lets each line be checked and edited (saved meetings only) */
     review?: TranscriptReviewActions;
+    /** Scroll to this line and highlight it briefly; a new nonce repeats it */
+    focus?: { id: string; nonce: number } | null;
 
     // Pagination props (infinite scroll)
     hasMore?: boolean;
@@ -123,6 +125,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     showConfidence = true,
     disableAutoScroll = false,
     review,
+    focus,
     hasMore = false,
     isLoadingMore = false,
     totalCount = 0,
@@ -227,6 +230,27 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     // Use simple rendering for small lists, virtualization for large lists
     const useVirtualization = segments.length >= VIRTUALIZATION_THRESHOLD;
 
+    // Scroll to the focused line once it is loaded; it may arrive with a later page
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+    const handledFocusRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (!focus || handledFocusRef.current === focus.nonce) return;
+        const index = segments.findIndex((segment) => segment.id === focus.id);
+        if (index < 0) return;
+        handledFocusRef.current = focus.nonce;
+        if (useVirtualization) {
+            virtualizer.scrollToIndex(index, { align: 'center' });
+        } else {
+            document.getElementById(`segment-${focus.id}`)?.scrollIntoView({ block: 'center' });
+        }
+        setHighlightId(focus.id);
+    }, [focus, segments, useVirtualization, virtualizer]);
+    useEffect(() => {
+        if (!highlightId) return;
+        const timer = setTimeout(() => setHighlightId(null), 2500);
+        return () => clearTimeout(timer);
+    }, [highlightId]);
+
     return (
         <div ref={scrollRef} className="flex flex-col h-full overflow-y-auto px-4 py-2">
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
@@ -293,6 +317,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                 >
+                                    <div className={`rounded transition-colors duration-500 ${highlightId === segment.id ? 'bg-yellow-100' : ''}`}>
                                     {review ? (
                                         <ReviewableLine segment={segment} actions={review} />
                                     ) : (
@@ -305,6 +330,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                             showConfidence={showConfidence}
                                         />
                                     )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -353,6 +379,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
                                 >
+                                    <div className={`rounded transition-colors duration-500 ${highlightId === segment.id ? 'bg-yellow-100' : ''}`}>
                                     {review ? (
                                         <ReviewableLine segment={segment} actions={review} />
                                     ) : (
@@ -365,6 +392,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                             showConfidence={showConfidence}
                                         />
                                     )}
+                                    </div>
                                 </motion.div>
                             );
                         })}
