@@ -40,6 +40,7 @@ pub async fn export_minutes_docx_command<R: Runtime>(
     title: String,
     markdown: String,
     keep_sources: Option<bool>,
+    meeting_id: Option<String>,
 ) -> Result<Option<DocxExportResult>, String> {
     let options = ExportOptions { strip_sources: !keep_sources.unwrap_or(false), ..Default::default() };
     let fonts = FontResolver::detect();
@@ -47,7 +48,9 @@ pub async fn export_minutes_docx_command<R: Runtime>(
         info!("Font precheck unavailable on this platform; writing font names as-is");
     }
     let markdown = with_title(&markdown, &title);
-    let result = match read_template(&app)? {
+    let template = read_template(&app)?;
+    let with_template = template.is_some();
+    let result = match template {
         Some(template) => render_with_template(&markdown, &template, &fonts, &options)?,
         None => render_markdown_to_docx(&markdown, &fonts, &options)?,
     };
@@ -73,6 +76,13 @@ pub async fn export_minutes_docx_command<R: Runtime>(
         warn!("docx export: {}", warning);
     }
     info!("Exported minutes to {}", path.display());
+    crate::audit::record(
+        "export_docx",
+        Some("meeting"),
+        meeting_id.as_deref(),
+        serde_json::json!({ "user_template": with_template, "keep_sources": !options.strip_sources }),
+    )
+    .await;
     Ok(Some(DocxExportResult { path: path.to_string_lossy().to_string(), warnings: result.warnings }))
 }
 
@@ -135,6 +145,7 @@ pub async fn choose_minutes_template_command<R: Runtime>(app: AppHandle<R>) -> R
     let name = source.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "自定义模板".to_string());
     let _ = std::fs::write(&name_file, &name);
     info!("Minutes Word template set to {}", name);
+    crate::audit::record("template_change", Some("setting"), Some("word_template"), serde_json::json!({ "template": "custom" })).await;
     Ok(Some(MinutesTemplateInfo { name, warnings: trial.warnings }))
 }
 
@@ -147,6 +158,7 @@ pub async fn clear_minutes_template_command<R: Runtime>(app: AppHandle<R>) -> Re
             std::fs::remove_file(&path).map_err(|e| format!("删除模板失败：{}", e))?;
         }
     }
+    crate::audit::record("template_change", Some("setting"), Some("word_template"), serde_json::json!({ "template": "builtin" })).await;
     Ok(())
 }
 

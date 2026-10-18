@@ -558,6 +558,8 @@ impl WhisperEngine {
         let adaptive_config = hardware_profile.get_whisper_config();
 
         // ADAPTIVE parameters - optimized for current hardware
+        // Declared before params, which borrows it; glossary spellings steer recognition
+        let zh_prompt = crate::glossary::whisper_prompt(crate::config::ZH_INITIAL_PROMPT);
         let mut params = FullParams::new(SamplingStrategy::BeamSearch {
             beam_size: adaptive_config.beam_size as i32,
             patience: 1.0
@@ -576,7 +578,7 @@ impl WhisperEngine {
         params.set_translate(should_translate);
         // Mandarin: steer output to Simplified Chinese with punctuation
         if language_code == Some("zh") {
-            params.set_initial_prompt(crate::config::ZH_INITIAL_PROMPT);
+            params.set_initial_prompt(&zh_prompt);
         }
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics
@@ -679,6 +681,8 @@ impl WhisperEngine {
         let adaptive_config = hardware_profile.get_whisper_config();
 
         // ADAPTIVE parameters - optimized for current hardware
+        // Declared before params, which borrows it; glossary spellings steer recognition
+        let zh_prompt = crate::glossary::whisper_prompt(crate::config::ZH_INITIAL_PROMPT);
         let mut params = FullParams::new(SamplingStrategy::BeamSearch {
             beam_size: adaptive_config.beam_size as i32,
             patience: 1.0
@@ -697,7 +701,7 @@ impl WhisperEngine {
         params.set_translate(should_translate);
         // Mandarin: steer output to Simplified Chinese with punctuation
         if language_code == Some("zh") {
-            params.set_initial_prompt(crate::config::ZH_INITIAL_PROMPT);
+            params.set_initial_prompt(&zh_prompt);
         }
 
         // CRITICAL: Disable timestamp tokens to prevent whisper.cpp chunking heuristics

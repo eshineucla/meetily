@@ -477,6 +477,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // Update tray menu to reflect recording state
     crate::tray::update_tray_menu(&app);
 
+    crate::glossary::take_live_hits();
+    crate::audit::record("record_start", None, None, serde_json::json!({})).await;
+
     info!("✅ Recording started successfully with async-first approach");
 
     Ok(())
@@ -666,6 +669,9 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
 
     // Update tray menu to reflect recording state
     crate::tray::update_tray_menu(&app);
+
+    crate::glossary::take_live_hits();
+    crate::audit::record("record_start", None, None, serde_json::json!({})).await;
 
     info!("✅ Recording started with custom devices using async-first approach");
 
@@ -1092,6 +1098,14 @@ pub async fn stop_recording<R: Runtime>(
 
     // Update tray menu to reflect stopped state
     crate::tray::update_tray_menu(&app);
+
+    crate::audit::record(
+        "record_stop",
+        None,
+        None,
+        serde_json::json!({ "glossary_hits": crate::glossary::take_live_hits() }),
+    )
+    .await;
 
     info!("🎉 Recording stopped successfully with ZERO transcript chunks lost");
     Ok(())

@@ -138,6 +138,7 @@ export function SummaryPanel({
       const result = await invoke<{ path: string; warnings: string[] } | null>('export_minutes_docx_command', {
         title: meetingTitle,
         markdown,
+        meetingId: meeting.id,
       });
       if (!result) return;
       if (result.warnings.length > 0) {

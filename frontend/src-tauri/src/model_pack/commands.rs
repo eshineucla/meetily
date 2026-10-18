@@ -89,6 +89,13 @@ pub async fn model_pack_import<R: Runtime>(
             log::warn!("Failed to rescan summary models after import: {}", e);
         }
     }
+    crate::audit::record(
+        "model_import",
+        None,
+        None,
+        serde_json::json!({ "imported": report.imported, "rejected": report.rejected.len(), "ignored": report.ignored.len() }),
+    )
+    .await;
     info!(
         "Model pack imported: {:?} (already present {:?}, ignored {}, rejected {})",
         report.imported,
@@ -128,5 +135,6 @@ pub async fn model_pack_export<R: Runtime>(app: AppHandle<R>, model_ids: Vec<Str
         .await
         .map_err(|e| format!("导出模型包失败：{}", e))??;
     info!("Model pack exported to {} ({} bytes)", saved.display(), bytes);
+    crate::audit::record("model_export", None, None, serde_json::json!({ "bytes": bytes })).await;
     Ok(Some(saved.display().to_string()))
 }

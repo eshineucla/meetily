@@ -204,7 +204,7 @@ pub fn start_transcription_task<R: Runtime>(
                                         // Emit transcript update with NEW recording-relative timestamps
 
                                         let update = TranscriptUpdate {
-                                            text: transcript,
+                                            text: crate::glossary::correct_live(transcript, !is_partial),
                                             timestamp: format_current_timestamp(), // Wall-clock for reference
                                             source: "Audio".to_string(),
                                             sequence_id,

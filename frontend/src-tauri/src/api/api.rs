@@ -573,6 +573,13 @@ pub async fn api_save_model_config<R: Runtime>(
         log_warn!("Failed to initiate graceful sidecar shutdown: {}", e);
     }
 
+    crate::audit::record(
+        "settings_change",
+        Some("setting"),
+        Some("summary_model"),
+        serde_json::json!({ "provider": provider, "model": model, "endpoint": ollama_endpoint }),
+    )
+    .await;
     log_info!("✅ Successfully saved model configuration to database");
     Ok(
         serde_json::json!({ "status": "success", "message": "Model configuration saved successfully" }),
@@ -686,6 +693,13 @@ pub async fn api_save_transcript_config<R: Runtime>(
         }
     }
 
+    crate::audit::record(
+        "settings_change",
+        Some("setting"),
+        Some("transcription_model"),
+        serde_json::json!({ "provider": provider, "model": model }),
+    )
+    .await;
     log_info!("Successfully saved transcript configuration.");
     Ok(
         serde_json::json!({ "status": "success", "message": "Transcript configuration saved successfully" }),
@@ -767,6 +781,7 @@ pub async fn api_delete_meeting<R: Runtime>(
     match MeetingsRepository::delete_meeting(pool, &meeting_id).await {
         Ok(true) => {
             log_info!("Successfully deleted meeting {}", meeting_id);
+            crate::audit::record_meeting("meeting_delete", &meeting_id, serde_json::json!({})).await;
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Meeting deleted successfully"
@@ -922,6 +937,7 @@ pub async fn api_save_meeting_title<R: Runtime>(
     match MeetingsRepository::update_meeting_title(pool, &meeting_id, &title).await {
         Ok(true) => {
             log_info!("Successfully saved meeting title");
+            crate::audit::record_meeting("meeting_rename", &meeting_id, serde_json::json!({})).await;
             Ok(serde_json::json!({"message": "Meeting title saved successfully"}))
         }
         Ok(false) => {
@@ -961,7 +977,7 @@ pub async fn api_save_transcript<R: Runtime>(
     }
 
     // Convert serde_json::Value to TranscriptSegment
-    let transcripts_to_save: Vec<TranscriptSegment> = transcripts
+    let mut transcripts_to_save: Vec<TranscriptSegment> = transcripts
         .into_iter()
         .map(serde_json::from_value)
         .collect::<Result<Vec<_>, _>>()
@@ -979,7 +995,12 @@ pub async fn api_save_transcript<R: Runtime>(
                    first_seg.duration);
     }
 
+    // Live lines were already corrected as they were transcribed; this catches anything else
+    let (glossary_hits, glossary_changed) =
+        crate::glossary::correct_all(transcripts_to_save.iter_mut().map(|s| &mut s.text));
+
     let pool = state.db_manager.pool();
+    let segment_count = transcripts_to_save.len();
 
     // Now, call the repository with the correctly typed data.
     match TranscriptsRepository::save_transcript(
@@ -995,6 +1016,8 @@ pub async fn api_save_transcript<R: Runtime>(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id
             );
+            crate::audit::record_meeting("meeting_create", &meeting_id, serde_json::json!({ "segments": segment_count })).await;
+            crate::glossary::record_corrections(&meeting_id, &glossary_hits, glossary_changed).await;
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Transcript saved successfully",
@@ -1239,6 +1262,13 @@ pub async fn api_save_custom_openai_config<R: Runtime>(
     match SettingsRepository::save_custom_openai_config(pool, &config).await {
         Ok(()) => {
             log_info!("✅ Successfully saved custom OpenAI config for endpoint: {}", config.endpoint);
+            crate::audit::record(
+                "settings_change",
+                Some("setting"),
+                Some("custom_openai"),
+                serde_json::json!({ "endpoint": config.endpoint, "model": config.model }),
+            )
+            .await;
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Custom OpenAI configuration saved successfully"
