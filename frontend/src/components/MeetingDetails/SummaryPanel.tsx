@@ -136,7 +136,7 @@ export function SummaryPanel({
   };
 
   const [isExporting, setIsExporting] = useState(false);
-  const handleExportDocx = async () => {
+  const handleExportDocx = async (format: 'docx' | 'pdf' = 'docx') => {
     setIsExporting(true);
     try {
       const markdown = (await summaryRef.current?.getMarkdown()) || (aiSummary as { markdown?: string } | null)?.markdown || '';
@@ -144,15 +144,16 @@ export function SummaryPanel({
         title: meetingTitle,
         markdown,
         meetingId: meeting.id,
+        format,
       });
       if (!result) return;
       if (result.warnings.length > 0) {
         toast.warning('已导出，但版式有差异', { description: result.warnings.join('\n'), duration: 10000 });
       } else {
-        toast.success('已导出 Word 文档', { description: result.path });
+        toast.success(format === 'pdf' ? '已导出 PDF' : '已导出 Word 文档', { description: result.path });
       }
     } catch (error) {
-      console.error('Docx export failed:', error);
+      console.error(`${format} export failed:`, error);
       toast.error('导出失败', { description: String(error) });
     } finally {
       setIsExporting(false);
@@ -370,7 +371,8 @@ export function SummaryPanel({
                 onSave={onSaveAll}
                 onCopy={onCopySummary}
                 readOnly={isFinalized}
-                onExportDocx={handleExportDocx}
+                onExportDocx={() => handleExportDocx('docx')}
+                onExportPdf={() => handleExportDocx('pdf')}
                 isExporting={isExporting}
               />
             </div>
