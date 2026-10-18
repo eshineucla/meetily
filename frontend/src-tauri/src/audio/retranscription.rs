@@ -138,8 +138,8 @@ pub async fn start_retranscription<R: Runtime>(
 }
 
 /// Find audio file in meeting folder
-/// Tries common names first, then scans for any file with an audio extension
-fn find_audio_file(folder: &Path) -> Result<PathBuf> {
+/// Tries common names first, then their encrypted forms, then scans for any file with an audio extension
+pub fn find_audio_file(folder: &Path) -> Result<PathBuf> {
     let candidates = [
         "audio.mp4", "audio.m4a", "audio.wav", "audio.mp3",
         "audio.flac", "audio.ogg", "recording.mp4",
@@ -151,6 +151,9 @@ fn find_audio_file(folder: &Path) -> Result<PathBuf> {
         if path.exists() {
             return Ok(path);
         }
+    }
+    if let Some(path) = crate::vault::folders::find_encrypted(folder, &candidates) {
+        return Ok(path);
     }
 
     // Fallback: scan folder for any file with an audio extension
@@ -200,7 +203,9 @@ async fn run_retranscription<R: Runtime>(
     // Decode the audio file (CPU-intensive, run in blocking task)
     let path_for_decode = audio_path.clone();
     let decoded = tokio::task::spawn_blocking(move || {
-        decode_audio_file(&path_for_decode)
+        // An encrypted recording is decoded from a temporary plain copy
+        let readable = crate::vault::folders::readable(&path_for_decode)?;
+        decode_audio_file(readable.path())
     })
     .await
     .map_err(|e| anyhow!("Decode task panicked: {}", e))??;
@@ -483,7 +488,8 @@ async fn run_retranscription<R: Runtime>(
     }
 
     // Find audio filename for metadata
-    let audio_filename = audio_path
+    let audio_filename = crate::vault::file_crypt::plain_path(&audio_path)
+        .unwrap_or_else(|| audio_path.clone())
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("audio.mp4")
@@ -497,6 +503,8 @@ async fn run_retranscription<R: Runtime>(
     ) {
         warn!("Failed to update metadata.json: {}", e);
     }
+
+    crate::vault::folders::seal_folder_or_warn(&folder_path);
 
     emit_progress(&app, &meeting_id, "complete", 100, "Retranscription complete");
 

@@ -57,6 +57,7 @@ pub mod summary;
 pub mod tray;
 pub mod transcript_import;
 pub mod transcript_edit;
+pub mod vault;
 pub mod minutes_docx;
 pub mod model_pack;
 pub mod utils;
@@ -285,7 +286,7 @@ fn get_transcription_status() -> TranscriptionStatus {
 
 #[tauri::command]
 fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
-    match std::fs::read(&file_path) {
+    match vault::file_crypt::read_maybe_encrypted(vault::key(), std::path::Path::new(&file_path)) {
         Ok(data) => Ok(data),
         Err(e) => Err(format!("Failed to read audio file: {}", e)),
     }
@@ -866,6 +867,9 @@ pub fn run() {
             transcript_edit::transcript_update_line,
             transcript_edit::transcript_restore_line,
             transcript_edit::transcript_confirm_line,
+            vault::commands::vault_status,
+            vault::commands::vault_export_key,
+            vault::commands::export_meeting_audio,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,

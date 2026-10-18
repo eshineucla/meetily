@@ -62,6 +62,22 @@ export function AuditLogSettings() {
   const [to, setTo] = useState("")
   const [action, setAction] = useState("")
   const [exporting, setExporting] = useState(false)
+  const [vault, setVault] = useState<{ keyStorage: "credential_store" | "file" | null; message: string } | null>(null)
+
+  useEffect(() => {
+    invoke<{ keyStorage: "credential_store" | "file" | null; message: string }>("vault_status")
+      .then(setVault)
+      .catch((error) => console.error("Failed to read encryption status:", error))
+  }, [])
+
+  const exportKey = async () => {
+    try {
+      const path = await invoke<string | null>("vault_export_key")
+      if (path) toast.success("已导出密钥备份，请单独保管，不要和电脑放在一起", { description: path, duration: 10000 })
+    } catch (error) {
+      toast.error("导出密钥备份失败", { description: String(error) })
+    }
+  }
 
   const loadStatus = useCallback(() => {
     invoke<AuditStatus>("audit_status")
@@ -128,6 +144,22 @@ export function AuditLogSettings() {
             <div className={`p-3 border rounded-md text-sm ${DISK_STYLE[status.disk.state]}`}>
               磁盘加密：{status.disk.message}
             </div>
+            {vault && (
+              <div
+                className={`p-3 border rounded-md text-sm flex flex-wrap items-center justify-between gap-2 ${
+                  vault.keyStorage === "credential_store"
+                    ? "bg-green-50 border-green-200 text-green-800"
+                    : "bg-amber-50 border-amber-200 text-amber-800"
+                }`}
+              >
+                <span>数据加密：{vault.message}</span>
+                {vault.keyStorage && (
+                  <button onClick={exportKey} className="px-2 py-1 rounded border border-current text-xs hover:bg-white">
+                    导出密钥备份
+                  </button>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {Object.entries(status.check_items).map(([item, state]) => (
                 <span

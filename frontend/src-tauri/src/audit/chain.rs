@@ -35,6 +35,9 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("minutes_unfinalize", "取消定稿"),
     ("export_docx", "导出 Word"),
     ("export_pdf", "导出 PDF"),
+    ("export_audio", "导出录音"),
+    ("key_export", "导出数据密钥备份"),
+    ("data_encrypt", "加密会议数据"),
     ("meeting_delete", "删除会议"),
     ("template_change", "更换导出模板"),
     ("settings_change", "修改模型或转写设置"),
@@ -57,9 +60,9 @@ pub const CHECK_ITEMS: &[(&str, &[&str])] = &[
     ("纪要生成记录", &["summary_generate"]),
     ("文稿修改记录", &["summary_edit", "summary_restore", "meeting_rename", "glossary_correct", "transcript_edit", "transcript_restore", "transcript_confirm"]),
     ("定稿记录", &["minutes_finalize", "minutes_unfinalize"]),
-    ("导出记录", &["export_docx", "export_pdf", "audit_export", "glossary_export"]),
+    ("导出记录", &["export_docx", "export_pdf", "export_audio", "key_export", "audit_export", "glossary_export"]),
     ("删除记录", &["meeting_delete"]),
-    ("配置变更记录", &["template_change", "settings_change", "model_import", "model_export", "glossary_change", "glossary_import"]),
+    ("配置变更记录", &["template_change", "settings_change", "model_import", "model_export", "glossary_change", "glossary_import", "data_encrypt"]),
 ];
 
 pub fn action_label(action: &str) -> Option<&'static str> {
