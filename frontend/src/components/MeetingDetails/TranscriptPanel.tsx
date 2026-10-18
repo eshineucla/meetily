@@ -4,8 +4,12 @@ import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 import type { ContextSaveState } from '@/hooks/meeting-details/useMeetingContext';
+import { reviewReasons, type EditedLine } from '@/lib/transcript-review';
+import type { TranscriptReviewActions } from './ReviewableLine';
 
 const SAVE_STATE_TEXT: Record<ContextSaveState, string> = {
   idle: '自动保存，下次生成纪要时使用，不需要提交',
@@ -37,6 +41,11 @@ interface TranscriptPanelProps {
   meetingId?: string;
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
+
+  // Line-by-line review: given together, lines can be checked and edited
+  isFinalized?: boolean;
+  onLineUpdated?: (line: EditedLine) => void;
+  onLoadAll?: () => Promise<void>;
 }
 
 export function TranscriptPanel({
@@ -58,7 +67,11 @@ export function TranscriptPanel({
   meetingId,
   meetingFolderPath,
   onRefetchTranscripts,
+  isFinalized = false,
+  onLineUpdated,
+  onLoadAll,
 }: TranscriptPanelProps) {
+  const [reviewOnly, setReviewOnly] = useState(false);
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
     if (usePagination && segments) {
@@ -74,6 +87,40 @@ export function TranscriptPanel({
     }));
   }, [transcripts, usePagination, segments]);
 
+  const reviewEnabled = Boolean(meetingId && onLineUpdated) && !isRecording;
+  const toReview = useMemo(
+    () => convertedSegments.filter((segment) => reviewReasons(segment).length > 0),
+    [convertedSegments],
+  );
+
+  // The filter has to see every line, not only the pages loaded so far
+  useEffect(() => {
+    if (reviewOnly && hasMore && onLoadAll) void onLoadAll();
+  }, [reviewOnly, hasMore, onLoadAll]);
+
+  useEffect(() => setReviewOnly(false), [meetingId]);
+
+  const review = useMemo<TranscriptReviewActions | undefined>(() => {
+    if (!reviewEnabled || !meetingId || !onLineUpdated) return undefined;
+    const call = async (command: string, args: Record<string, unknown>, failure: string) => {
+      try {
+        onLineUpdated(await invoke<EditedLine>(command, { meetingId, ...args }));
+        return true;
+      } catch (error) {
+        toast.error(failure, { description: String(error) });
+        return false;
+      }
+    };
+    return {
+      lockedReason: isFinalized ? '纪要已定稿，记录稿不能修改；要修改请先取消定稿' : undefined,
+      onSave: (lineId, text) => call('transcript_update_line', { lineId, text }, '保存失败'),
+      onConfirm: async (lineId) => { await call('transcript_confirm_line', { lineId }, '确认失败'); },
+      onRestore: async (lineId) => { await call('transcript_restore_line', { lineId }, '恢复失败'); },
+    };
+  }, [reviewEnabled, meetingId, onLineUpdated, isFinalized]);
+
+  const shownSegments = reviewOnly ? toReview : convertedSegments;
+
   return (
     <div className="flex h-full min-w-0 w-full bg-white flex-col relative @container">
       {/* Title area */}
@@ -88,10 +135,29 @@ export function TranscriptPanel({
         />
       </div>
 
+      {review && convertedSegments.length > 0 && (
+        <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-1.5 text-xs text-gray-500">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={reviewOnly} onChange={(e) => setReviewOnly(e.target.checked)} />
+            只看待复核（{toReview.length}{hasMore ? '+' : ''}）
+          </label>
+          {review.lockedReason ? (
+            <span>{review.lockedReason}</span>
+          ) : (
+            <span className="text-gray-400">把握度低或过短的句子会标出来；改过的句子可以恢复原文</span>
+          )}
+        </div>
+      )}
+
       {/* Transcript content - use virtualized view for better performance */}
       <div className="flex-1 overflow-hidden pb-4">
+        {reviewOnly && shownSegments.length === 0 ? (
+          <p className="mt-8 text-center text-sm text-gray-500">
+            {isLoadingMore ? '正在加载全部记录稿…' : '没有待复核的句子了'}
+          </p>
+        ) : (
         <VirtualizedTranscriptView
-          segments={convertedSegments}
+          segments={shownSegments}
           isRecording={isRecording}
           isPaused={false}
           isProcessing={false}
@@ -104,7 +170,9 @@ export function TranscriptPanel({
           totalCount={totalCount}
           loadedCount={loadedCount}
           onLoadMore={onLoadMore}
+          review={review}
         />
+        )}
       </div>
 
       {/* Custom prompt input at bottom of transcript section */}

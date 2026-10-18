@@ -35,6 +35,12 @@ pub struct Transcript {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
+    /// Recognition confidence (0–1) when the engine reported one
+    pub confidence: Option<f64>,
+    /// The transcribed text before the user's first edit; None when never edited
+    pub original_text: Option<String>,
+    /// When the user checked the line (edited or confirmed it); None when not yet checked
+    pub reviewed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]

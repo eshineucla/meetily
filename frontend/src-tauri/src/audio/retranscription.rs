@@ -338,6 +338,7 @@ async fn run_retranscription<R: Runtime>(
 
     // Process each speech segment with progress updates
     let mut all_transcripts: Vec<(String, f64, f64)> = Vec::new(); // (text, start_ms, end_ms)
+    let mut confidences: Vec<Option<f64>> = Vec::new();
     let mut total_confidence = 0.0f32;
 
     for (i, segment) in processable_segments.iter().enumerate() {
@@ -394,6 +395,8 @@ async fn run_retranscription<R: Runtime>(
                 if trimmed.len() > 80 { let mut end = 80; while !trimmed.is_char_boundary(end) { end -= 1; } &trimmed[..end] } else { trimmed }
             );
             all_transcripts.push((text, segment.start_timestamp_ms, segment.end_timestamp_ms));
+            // Parakeet and SenseVoice report no confidence (the 0.9 above is a placeholder)
+            confidences.push(if use_parakeet { None } else { Some(conf as f64) });
             total_confidence += conf;
         } else {
             debug!("Segment {}/{}: {:.1}s — empty transcription", i + 1, processable_count, segment_duration_sec);
@@ -421,6 +424,9 @@ async fn run_retranscription<R: Runtime>(
 
     // Create transcript segments with proper timestamps from VAD
     let mut segments = create_transcript_segments(&all_transcripts);
+    for (segment, confidence) in segments.iter_mut().zip(confidences) {
+        segment.confidence = confidence;
+    }
     let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));
 
     // Save to database
@@ -443,8 +449,8 @@ async fn run_retranscription<R: Runtime>(
 
     for segment in &segments {
         sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, confidence)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&segment.id)
         .bind(&meeting_id)
@@ -453,6 +459,7 @@ async fn run_retranscription<R: Runtime>(
         .bind(segment.audio_start_time)
         .bind(segment.audio_end_time)
         .bind(segment.duration)
+        .bind(segment.confidence)
         .execute(&mut *tx)
         .await
         .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;

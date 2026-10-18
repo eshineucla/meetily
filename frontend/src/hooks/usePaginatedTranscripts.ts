@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Transcript, MeetingMetadata, PaginatedTranscriptsResponse, TranscriptSegmentData } from "@/types";
+import type { EditedLine } from "@/lib/transcript-review";
 
 const DEFAULT_PAGE_SIZE = 100;
 
@@ -23,6 +24,8 @@ interface UsePaginatedTranscriptsReturn {
 
     // Actions
     loadMore: () => Promise<void>;
+    loadAll: () => Promise<void>;
+    updateLine: (line: EditedLine) => void;
     reset: () => void;
     refetch: () => Promise<void>;
 }
@@ -37,6 +40,8 @@ function convertTranscriptsToSegments(transcripts: Transcript[]): TranscriptSegm
         endTime: t.audio_end_time,
         text: t.text,
         confidence: t.confidence,
+        originalText: t.original_text,
+        reviewed: t.reviewed,
     }));
 }
 
@@ -171,6 +176,32 @@ export function usePaginatedTranscripts({
         }
     }, [hasMore, meetingId, loadTranscriptsAtOffset, isLoading, isCurrentRequest]);
 
+    // Load every remaining line, e.g. so a filter sees the whole transcript
+    const loadAll = useCallback(async () => {
+        const requestId = requestIdRef.current;
+        if (!isCurrentRequest(requestId) || isLoadingRef.current || !hasMore || !meetingId || isLoading) return;
+        isLoadingRef.current = true;
+        setIsLoadingMore(true);
+        try {
+            while (isCurrentRequest(requestId)) {
+                const page = await loadTranscriptsAtOffset(requestId, offsetRef.current, true);
+                if (page.length < DEFAULT_PAGE_SIZE) break;
+            }
+        } finally {
+            if (isCurrentRequest(requestId)) {
+                setIsLoadingMore(false);
+                isLoadingRef.current = false;
+            }
+        }
+    }, [hasMore, meetingId, loadTranscriptsAtOffset, isLoading, isCurrentRequest]);
+
+    // Apply a saved edit, confirmation or restore of one line without reloading
+    const updateLine = useCallback((line: EditedLine) => {
+        setTranscripts(prev => prev.map(t => t.id === line.id
+            ? { ...t, text: line.text, original_text: line.originalText ?? undefined, reviewed: line.reviewed }
+            : t));
+    }, []);
+
     // Force refetch of data (e.g., after retranscription)
     const refetch = useCallback(async () => {
         if (!meetingId || activeMeetingIdRef.current !== meetingId) return;
@@ -217,6 +248,8 @@ export function usePaginatedTranscripts({
         loadedCount: transcripts.length,
         error,
         loadMore,
+        loadAll,
+        updateLine,
         reset,
         refetch,
     };

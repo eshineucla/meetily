@@ -44,6 +44,9 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("glossary_change", "修改术语库"),
     ("glossary_import", "导入术语库"),
     ("glossary_export", "导出术语库"),
+    ("transcript_edit", "修改记录稿"),
+    ("transcript_restore", "恢复记录稿原文"),
+    ("transcript_confirm", "确认记录稿"),
 ];
 
 /// Check items an inspection looks for, and the actions that cover each
@@ -51,7 +54,7 @@ pub const CHECK_ITEMS: &[(&str, &[&str])] = &[
     ("使用记录", &["app_start", "app_exit"]),
     ("会议内容进入记录", &["record_start", "record_stop", "meeting_create", "import_audio", "import_text"]),
     ("纪要生成记录", &["summary_generate"]),
-    ("文稿修改记录", &["summary_edit", "summary_restore", "meeting_rename", "glossary_correct"]),
+    ("文稿修改记录", &["summary_edit", "summary_restore", "meeting_rename", "glossary_correct", "transcript_edit", "transcript_restore", "transcript_confirm"]),
     ("定稿记录", &["minutes_finalize", "minutes_unfinalize"]),
     ("导出记录", &["export_docx", "audit_export", "glossary_export"]),
     ("删除记录", &["meeting_delete"]),

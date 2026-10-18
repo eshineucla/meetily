@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { ReviewableLine, type TranscriptReviewActions } from "./MeetingDetails/ReviewableLine";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -27,6 +28,8 @@ export interface VirtualizedTranscriptViewProps {
     showConfidence?: boolean;
     /** Completely disable auto-scroll behavior (for meeting details page) */
     disableAutoScroll?: boolean;
+    /** Lets each line be checked and edited (saved meetings only) */
+    review?: TranscriptReviewActions;
 
     // Pagination props (infinite scroll)
     hasMore?: boolean;
@@ -119,6 +122,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     enableStreaming = false,
     showConfidence = true,
     disableAutoScroll = false,
+    review,
     hasMore = false,
     isLoadingMore = false,
     totalCount = 0,
@@ -289,14 +293,18 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                 >
-                                    <TranscriptSegment
-                                        id={segment.id}
-                                        timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
-                                        confidence={segment.confidence}
-                                        isStreaming={isStreaming}
-                                        showConfidence={showConfidence}
-                                    />
+                                    {review ? (
+                                        <ReviewableLine segment={segment} actions={review} />
+                                    ) : (
+                                        <TranscriptSegment
+                                            id={segment.id}
+                                            timestamp={segment.timestamp}
+                                            text={getDisplayText(segment)}
+                                            confidence={segment.confidence}
+                                            isStreaming={isStreaming}
+                                            showConfidence={showConfidence}
+                                        />
+                                    )}
                                 </div>
                             );
                         })}
@@ -345,14 +353,18 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
                                 >
-                                    <TranscriptSegment
-                                        id={segment.id}
-                                        timestamp={segment.timestamp}
-                                        text={getDisplayText(segment)}
-                                        confidence={segment.confidence}
-                                        isStreaming={isStreaming}
-                                        showConfidence={showConfidence}
-                                    />
+                                    {review ? (
+                                        <ReviewableLine segment={segment} actions={review} />
+                                    ) : (
+                                        <TranscriptSegment
+                                            id={segment.id}
+                                            timestamp={segment.timestamp}
+                                            text={getDisplayText(segment)}
+                                            confidence={segment.confidence}
+                                            isStreaming={isStreaming}
+                                            showConfidence={showConfidence}
+                                        />
+                                    )}
                                 </motion.div>
                             );
                         })}

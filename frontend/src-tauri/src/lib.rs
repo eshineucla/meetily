@@ -56,6 +56,7 @@ pub mod state;
 pub mod summary;
 pub mod tray;
 pub mod transcript_import;
+pub mod transcript_edit;
 pub mod minutes_docx;
 pub mod model_pack;
 pub mod utils;
@@ -862,6 +863,9 @@ pub fn run() {
             glossary::commands::glossary_export_csv,
             glossary::commands::glossary_preview,
             glossary::commands::glossary_apply_to_meeting,
+            transcript_edit::transcript_update_line,
+            transcript_edit::transcript_restore_line,
+            transcript_edit::transcript_confirm_line,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,

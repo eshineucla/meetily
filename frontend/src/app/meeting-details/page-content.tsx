@@ -20,6 +20,7 @@ import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
 import { parseSummaryContent } from '@/lib/summary-content';
+import type { EditedLine } from '@/lib/transcript-review';
 
 export default function PageContent({
   meeting,
@@ -36,6 +37,8 @@ export default function PageContent({
   totalCount,
   loadedCount,
   onLoadMore,
+  onLoadAll,
+  onLineUpdated,
 }: {
   meeting: any;
   summaryData: MeetingSummary | null;
@@ -51,6 +54,8 @@ export default function PageContent({
   totalCount?: number;
   loadedCount?: number;
   onLoadMore?: () => void;
+  onLoadAll?: () => Promise<void>;
+  onLineUpdated?: (line: EditedLine) => void;
 }) {
   console.log('📄 PAGE CONTENT: Initializing with data:', {
     meetingId: meeting.id,
@@ -256,6 +261,9 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
+              isFinalized={isFinalized}
+              onLineUpdated={onLineUpdated}
+              onLoadAll={onLoadAll}
             />
           }
           summary={
