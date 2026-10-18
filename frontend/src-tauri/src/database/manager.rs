@@ -33,6 +33,7 @@ impl DatabaseManager {
         let pool = SqlitePool::connect(tauri_db_path).await?;
 
         sqlx::migrate!("./migrations").run(&pool).await?;
+        crate::audit::attach_database(pool.clone());
 
         Ok(DatabaseManager { pool })
     }

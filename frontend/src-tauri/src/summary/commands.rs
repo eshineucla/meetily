@@ -114,6 +114,7 @@ pub async fn api_save_meeting_summary<R: Runtime>(
     match SummaryProcessesRepository::update_meeting_summary(pool, &meeting_id, &summary).await {
         Ok(true) => {
             log_info!("Summary saved successfully for meeting_id: {}", meeting_id);
+            crate::audit::record_meeting("summary_edit", &meeting_id, serde_json::json!({})).await;
             Ok(serde_json::json!({
                 "message": "Meeting summary saved successfully"
             }))
@@ -727,6 +728,7 @@ pub async fn api_restore_summary_version(
     match SummaryVersionsRepository::restore(pool, &meeting_id, &saved.result).await {
         Ok(true) => {
             log_info!("Restored summary version {} for meeting {}", version, meeting_id);
+            crate::audit::record_meeting("summary_restore", &meeting_id, serde_json::json!({ "version": version })).await;
             Ok(())
         }
         Ok(false) => Err("Meeting has no summary to restore into".to_string()),
@@ -756,6 +758,8 @@ pub async fn api_set_meeting_finalized(
     match MeetingsRepository::set_finalized(state.db_manager.pool(), &meeting_id, finalized).await {
         Ok(true) => {
             log_info!("Meeting {} finalized: {}", meeting_id, finalized);
+            let action = if finalized { "minutes_finalize" } else { "minutes_unfinalize" };
+            crate::audit::record_meeting(action, &meeting_id, serde_json::json!({})).await;
             Ok(())
         }
         Ok(false) => Err("Meeting not found".to_string()),

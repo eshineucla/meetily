@@ -651,6 +651,7 @@ async fn run_import<R: Runtime>(
         meeting_folder.to_string_lossy().to_string(),
     )
     .await?;
+    crate::audit::record_meeting("import_audio", &meeting_id, serde_json::json!({ "segments": segments.len() })).await;
 
     // Write transcripts.json and metadata.json to the meeting folder
     emit_progress(&app, "saving", 90, "Writing transcript files...");

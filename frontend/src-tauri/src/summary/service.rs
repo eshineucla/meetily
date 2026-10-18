@@ -622,6 +622,12 @@ impl SummaryService {
                             }
                         }
                         info!("Summary saved successfully for meeting_id: {}", meeting_id);
+                        crate::audit::record_meeting(
+                            "summary_generate",
+                            &meeting_id,
+                            serde_json::json!({ "chunks": generated.successful_chunk_count }),
+                        )
+                        .await;
                     }
                     Ok(false) => warn!("Skipped stale summary completion for meeting_id: {}", meeting_id),
                     Err(error) => error!(
@@ -683,7 +689,9 @@ impl SummaryService {
         .await
         {
             Ok(false) => warn!("Skipped stale summary failure for meeting_id: {}", meeting_id),
-            Ok(true) => {}
+            Ok(true) => {
+                crate::audit::record_failure("summary_generate", Some("meeting"), Some(meeting_id), serde_json::json!({})).await;
+            }
             Err(e) => error!(
                 "Failed to update DB status to failed for {}: {}",
                 meeting_id, e

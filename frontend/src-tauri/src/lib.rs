@@ -36,6 +36,7 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod audit;
 pub mod build_variant;
 pub mod api;
 pub mod audio;
@@ -847,6 +848,9 @@ pub fn run() {
             model_pack::commands::model_pack_list_installed,
             model_pack::commands::model_pack_import,
             model_pack::commands::model_pack_export,
+            audit::commands::audit_list,
+            audit::commands::audit_status,
+            audit::commands::audit_export_report,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,
@@ -867,6 +871,8 @@ pub fn run() {
                 tauri::RunEvent::Exit => {
                     log::info!("Application exiting, cleaning up resources...");
                     tauri::async_runtime::block_on(async {
+                        audit::record("app_exit", None, None, serde_json::json!({})).await;
+
                         // Clean up database connection and checkpoint WAL
                         if let Some(app_state) = _app_handle.try_state::<state::AppState>() {
                             log::info!("Starting database cleanup...");

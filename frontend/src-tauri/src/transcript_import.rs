@@ -153,6 +153,7 @@ pub async fn import_transcript_text_command(
         })?;
 
     info!("Imported transcript '{}' as {} ({} segments)", title, meeting_id, segments.len());
+    crate::audit::record_meeting("import_text", &meeting_id, serde_json::json!({ "segments": segments.len() })).await;
     Ok(meeting_id)
 }
 

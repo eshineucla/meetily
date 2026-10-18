@@ -16,7 +16,7 @@ pub const CLOUD_DISABLED: &str = "涉密版不包含云端模型，请使用内�
 
 /// Shown when a model download is requested in the classified build
 #[cfg_attr(feature = "online", allow(dead_code))]
-pub const MODEL_DOWNLOAD_DISABLED: &str = "涉密版不联网下载模型，请在“设置 → 偏好设置 → 模型包”中导入模型包";
+pub const MODEL_DOWNLOAD_DISABLED: &str = "涉密版不联网下载模型，请在“设置 → 通用 → 模型包”中导入模型包";
 
 /// Whether this is the classified build
 #[tauri::command]
