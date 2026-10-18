@@ -9,6 +9,11 @@ import type { ParakeetDownloadProgressEvent } from '@/lib/parakeet';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSummaryModelSizeLabel, getSummaryModelSizeMb } from '@/lib/onboarding-summary-model';
+import { CLASSIFIED_BUILD } from '@/config/features';
+import { importModelPack } from '@/lib/model-pack';
+
+// The classified build does not download models: they come in a model pack
+const NEEDS_PACK = '涉密版不联网下载模型，请导入模型包';
 
 type DownloadStatus = 'waiting' | 'downloading' | 'completed' | 'cancelled' | 'error';
 
@@ -57,6 +62,7 @@ export function DownloadProgressStep() {
   });
 
   const [isCompleting, setIsCompleting] = useState(false);
+  const [importingPack, setImportingPack] = useState(false);
   const transcriptionDownloadStartedRef = useRef(false);
   const summaryDownloadStartedRef = useRef(false);
   const retryingRef = useRef(false);
@@ -193,6 +199,13 @@ export function DownloadProgressStep() {
     if (transcriptionDownloadStartedRef.current) return;
     transcriptionDownloadStartedRef.current = true;
 
+    if (CLASSIFIED_BUILD) {
+      if (!transcriptionDownloaded) {
+        setTranscriptionState((prev) => ({ ...prev, status: 'error', error: NEEDS_PACK }));
+      }
+      return;
+    }
+
     if (!transcriptionDownloaded) {
       setTranscriptionState((prev) => ({ ...prev, status: 'downloading' }));
     }
@@ -213,6 +226,13 @@ export function DownloadProgressStep() {
     if (summaryDownloadStartedRef.current) return;
     if (!needsSummaryDownload || !selectedSummaryModel) return;
     summaryDownloadStartedRef.current = true;
+
+    if (CLASSIFIED_BUILD) {
+      if (!summaryModelDownloaded) {
+        setSummaryState((prev) => ({ ...prev, status: 'error', error: NEEDS_PACK }));
+      }
+      return;
+    }
 
     startSummaryDownload();
   }, [selectedSummaryModel]);
@@ -389,6 +409,31 @@ export function DownloadProgressStep() {
     }
   };
 
+  // Install models from a model pack, then mark what is now on disk as ready
+  const handleImportPack = async () => {
+    setImportingPack(true);
+    try {
+      const report = await importModelPack();
+      if (!report) return;
+      const { available } = await getTranscriptionModelState(transcriptionProvider, transcriptionModel);
+      if (available) {
+        setTranscriptionDownloaded(true);
+        setTranscriptionState((prev) => ({ ...prev, status: 'completed', progress: 100, error: undefined }));
+      }
+      if (needsSummaryDownload && selectedSummaryModel) {
+        const ready = await invoke<boolean>('builtin_ai_is_model_ready', { modelName: selectedSummaryModel, refresh: true });
+        if (ready) {
+          setSummaryModelDownloaded(true);
+          setSummaryState((prev) => ({ ...prev, status: 'completed', progress: 100, error: undefined }));
+        }
+      }
+    } catch (error) {
+      console.error('[DownloadProgressStep] Model pack import failed:', error);
+    } finally {
+      setImportingPack(false);
+    }
+  };
+
   const handleContinue = async () => {
     // Verify actual model availability (catches state drift)
     try {
@@ -519,10 +564,20 @@ export function DownloadProgressStep() {
       {(state.status === 'error' || state.status === 'cancelled') && (
         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-600 font-medium">
-            {state.status === 'cancelled' ? '下载已取消' : '下载出错'}
+            {state.status === 'cancelled' ? '下载已取消' : CLASSIFIED_BUILD ? '需要导入模型' : '下载出错'}
           </p>
           {state.error && <p className="text-xs text-red-500 mt-1">{state.error}</p>}
           {(title === '转写引擎' || title === '纪要引擎') && (
+            <button
+              onClick={handleImportPack}
+              disabled={importingPack}
+              className="mt-3 w-full h-9 px-4 border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {importingPack ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              导入模型包
+            </button>
+          )}
+          {!CLASSIFIED_BUILD && (title === '转写引擎' || title === '纪要引擎') && (
             <button
               onClick={title === '转写引擎' ? handleRetryDownload : handleRetrySummaryDownload}
               className="mt-3 w-full h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"

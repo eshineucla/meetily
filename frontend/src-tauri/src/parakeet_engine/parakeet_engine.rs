@@ -176,6 +176,14 @@ const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
     },
 ];
 
+/// `(model, file name, exact size)` of every ONNX engine model file, for model packs
+pub fn model_pack_files() -> Vec<(&'static str, &'static str, u64)> {
+    PARAKEET_MODEL_SPECS
+        .iter()
+        .flat_map(|spec| spec.artifacts.iter().map(move |a| (spec.name, a.filename, a.exact_bytes)))
+        .collect()
+}
+
 fn find_model_spec(model_name: &str) -> Option<&'static ModelSpec> {
     PARAKEET_MODEL_SPECS
         .iter()

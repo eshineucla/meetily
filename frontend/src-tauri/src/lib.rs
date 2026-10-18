@@ -55,6 +55,7 @@ pub mod summary;
 pub mod tray;
 pub mod transcript_import;
 pub mod minutes_docx;
+pub mod model_pack;
 pub mod utils;
 pub mod whisper_engine;
 
@@ -843,6 +844,9 @@ pub fn run() {
             transcript_import::import_transcript_text_command,
             minutes_docx::commands::export_minutes_docx_command,
             build_variant::is_classified_build,
+            model_pack::commands::model_pack_list_installed,
+            model_pack::commands::model_pack_import,
+            model_pack::commands::model_pack_export,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,

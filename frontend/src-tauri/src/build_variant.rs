@@ -4,7 +4,8 @@
 //! compiled with `--no-default-features`, which leaves out at compile time:
 //! - the cloud summary providers (OpenAI, Claude, Groq, OpenRouter) and their model lists,
 //! - PostHog analytics (`posthog-rs` is not linked),
-//! - the auto-updater (`tauri-plugin-updater` is not linked).
+//! - the auto-updater (`tauri-plugin-updater` is not linked),
+//! - model downloads: models are installed from a model pack instead (see `model_pack`).
 //!
 //! Ollama and custom OpenAI-compatible servers stay available in the classified build, but only
 //! on this machine or the internal network: see [`check_endpoint`].
@@ -12,6 +13,10 @@
 /// Shown when a cloud provider is requested in the classified build
 #[cfg_attr(feature = "online", allow(dead_code))]
 pub const CLOUD_DISABLED: &str = "涉密版不包含云端模型，请使用内置模型、本机 Ollama 或内网接口";
+
+/// Shown when a model download is requested in the classified build
+#[cfg_attr(feature = "online", allow(dead_code))]
+pub const MODEL_DOWNLOAD_DISABLED: &str = "涉密版不联网下载模型，请在“设置 → 偏好设置 → 模型包”中导入模型包";
 
 /// Whether this is the classified build
 #[tauri::command]
@@ -34,6 +39,15 @@ pub fn check_endpoint(endpoint: &str) -> Result<(), String> {
             "涉密版只能连接本机或内网的模型服务，“{}”不是内网地址。请填写内网 IP（如 http://192.168.1.10:11434）或内网主机名",
             endpoint.trim()
         ))
+    }
+}
+
+/// The classified build does not download models; they come in a model pack
+pub fn check_model_download() -> Result<(), String> {
+    if cfg!(feature = "online") {
+        Ok(())
+    } else {
+        Err(MODEL_DOWNLOAD_DISABLED.to_string())
     }
 }
 
