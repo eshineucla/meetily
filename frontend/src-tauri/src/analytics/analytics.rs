@@ -1,4 +1,7 @@
+#[cfg(feature = "online")]
 use posthog_rs::{Client, Event};
+#[cfg(not(feature = "online"))]
+use offline::{Client, Event};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -45,7 +48,7 @@ impl Default for AnalyticsConfig {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            host: Some("https://us.i.posthog.com".to_string()),
+            host: None,
             enabled: false,
         }
     }
@@ -84,11 +87,15 @@ pub struct AnalyticsClient {
 
 impl AnalyticsClient {
     pub async fn new(config: AnalyticsConfig) -> Self {
+        #[cfg(feature = "online")]
         let client = if config.enabled && !config.api_key.is_empty() {
             Some(Arc::new(posthog_rs::client(config.api_key.as_str()).await))
         } else {
             None
         };
+        // The classified build does not link PostHog, so no client can exist
+        #[cfg(not(feature = "online"))]
+        let client: Option<Arc<Client>> = None;
 
         Self {
             client,
@@ -455,6 +462,29 @@ impl AnalyticsClient {
     }
 }
 
+/// Stand-ins for the PostHog types in the classified build; nothing is ever sent
+#[cfg(not(feature = "online"))]
+mod offline {
+    pub struct Client;
+    pub struct Event;
+
+    impl Client {
+        pub async fn capture(&self, _event: Event) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    impl Event {
+        pub fn new(_event: &str, _distinct_id: &str) -> Self {
+            Event
+        }
+
+        pub fn insert_prop<V>(&mut self, _key: &str, _value: V) -> Result<(), String> {
+            Ok(())
+        }
+    }
+}
+
 // Helper function to create analytics client from config
 pub async fn create_analytics_client(config: AnalyticsConfig) -> AnalyticsClient {
     AnalyticsClient::new(config).await
@@ -519,6 +549,7 @@ mod tests {
         assert_eq!(sanitized.get("platform"), Some(&"Windows".to_string()));
     }
 
+    #[cfg(feature = "online")]
     #[tokio::test]
     async fn ending_session_completes_and_emits_an_event() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

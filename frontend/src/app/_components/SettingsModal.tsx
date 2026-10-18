@@ -1,4 +1,5 @@
 import { ModelConfig } from "@/components/ModelSettingsModal";
+import { CLOUD_PROVIDERS_ENABLED } from '@/config/features';
 import { PreferenceSettings } from "@/components/PreferenceSettings";
 import { DeviceSelection } from "@/components/DeviceSelection";
 import { LanguageSelection } from "@/components/LanguageSelection";
@@ -104,11 +105,11 @@ export function SettingsModals({
                       }}
                     >
                       <option value="builtin-ai">内置 AI</option>
-                      <option value="claude">Claude</option>
-                      <option value="groq">Groq</option>
+                      {CLOUD_PROVIDERS_ENABLED && <option value="claude">Claude</option>}
+                      {CLOUD_PROVIDERS_ENABLED && <option value="groq">Groq</option>}
                       <option value="ollama">Ollama</option>
-                      <option value="openrouter">OpenRouter</option>
-                      <option value="openai">OpenAI</option>
+                      {CLOUD_PROVIDERS_ENABLED && <option value="openrouter">OpenRouter</option>}
+                      {CLOUD_PROVIDERS_ENABLED && <option value="openai">OpenAI</option>}
                     </select>
 
                     <select

@@ -89,6 +89,7 @@ fn validate_endpoint_url(url: &str) -> Result<(), OllamaError> {
             "URL must start with http:// or https://".to_string()
         ));
     }
+    crate::build_variant::check_endpoint(url).map_err(OllamaError::InvalidEndpoint)?;
 
     Ok(())
 }
@@ -262,6 +263,9 @@ pub async fn pull_ollama_model<R: Runtime>(
     model_name: String,
     endpoint: Option<String>,
 ) -> Result<(), String> {
+    if let Some(ep) = endpoint.as_deref() {
+        crate::build_variant::check_endpoint(ep)?;
+    }
     // Check if model is already being downloaded
     {
         let downloading = DOWNLOADING_MODELS.read().await;
@@ -437,6 +441,9 @@ pub async fn delete_ollama_model(
     model_name: String,
     endpoint: Option<String>,
 ) -> Result<(), String> {
+    if let Some(ep) = endpoint.as_deref() {
+        crate::build_variant::check_endpoint(ep)?;
+    }
     let client = Client::new();
     let base_url = endpoint.as_deref().unwrap_or("http://localhost:11434");
     let url = format!("{}/api/delete", base_url);
@@ -491,6 +498,9 @@ pub async fn get_ollama_model_context(
     endpoint: Option<String>,
 ) -> Result<usize, String> {
     log::info!("Fetching context size for model: {}", model_name);
+    if let Some(ep) = endpoint.as_deref() {
+        crate::build_variant::check_endpoint(ep)?;
+    }
 
     match METADATA_CACHE.get_or_fetch(&model_name, endpoint.as_deref()).await {
         Ok(metadata) => {

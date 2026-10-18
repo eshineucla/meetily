@@ -299,14 +299,21 @@ pub(crate) async fn generate_summary(
     }
 
     let (api_url, mut headers) = match provider {
+        #[cfg(not(feature = "online"))]
+        LLMProvider::OpenAI | LLMProvider::Groq | LLMProvider::OpenRouter | LLMProvider::Claude => {
+            return Err(crate::build_variant::CLOUD_DISABLED.to_string());
+        }
+        #[cfg(feature = "online")]
         LLMProvider::OpenAI => (
             "https://api.openai.com/v1/chat/completions".to_string(),
             header::HeaderMap::new(),
         ),
+        #[cfg(feature = "online")]
         LLMProvider::Groq => (
             "https://api.groq.com/openai/v1/chat/completions".to_string(),
             header::HeaderMap::new(),
         ),
+        #[cfg(feature = "online")]
         LLMProvider::OpenRouter => (
             "https://openrouter.ai/api/v1/chat/completions".to_string(),
             header::HeaderMap::new(),
@@ -315,6 +322,7 @@ pub(crate) async fn generate_summary(
             let host = ollama_endpoint
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "http://localhost:11434".to_string());
+            crate::build_variant::check_endpoint(&host)?;
             (
                 format!("{}/v1/chat/completions", host),
                 header::HeaderMap::new(),
@@ -323,11 +331,13 @@ pub(crate) async fn generate_summary(
         LLMProvider::CustomOpenAI => {
             let endpoint = custom_openai_endpoint
                 .ok_or_else(|| "Custom OpenAI endpoint not configured".to_string())?;
+            crate::build_variant::check_endpoint(endpoint)?;
             (
                 format!("{}/chat/completions", endpoint.trim_end_matches('/')),
                 header::HeaderMap::new(),
             )
         }
+        #[cfg(feature = "online")]
         LLMProvider::Claude => {
             let mut header_map = header::HeaderMap::new();
             header_map.insert(

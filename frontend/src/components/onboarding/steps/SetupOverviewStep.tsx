@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { CLASSIFIED_BUILD } from '@/config/features';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -254,7 +255,7 @@ export function SetupOverviewStep() {
           {summaryChoice === 'custom-openai' && (
             <div className="space-y-2 pl-7">
               <Input
-                placeholder="接口地址，例如 http://localhost:8000/v1"
+                placeholder={CLASSIFIED_BUILD ? '内网接口地址，例如 http://192.168.1.10:8000/v1' : '接口地址，例如 http://localhost:8000/v1'}
                 value={customOpenAI.endpoint}
                 onChange={(e) => setCustomOpenAI({ ...customOpenAI, endpoint: e.target.value })}
               />

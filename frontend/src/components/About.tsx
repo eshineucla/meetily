@@ -7,7 +7,7 @@ import { updateService, UpdateInfo } from '@/services/updateService';
 import { Button } from './ui/button';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ANALYTICS_ENABLED, UPDATES_ENABLED } from '@/config/features';
+import { ANALYTICS_ENABLED, CLASSIFIED_BUILD, UPDATES_ENABLED } from '@/config/features';
 
 
 export function About() {
@@ -53,7 +53,7 @@ export function About() {
                     />
                 </div>
                 {/* <h1 className="text-xl font-bold text-gray-900">Meetily</h1> */}
-                <span className="text-sm text-gray-500"> v{currentVersion}</span>
+                <span className="text-sm text-gray-500"> v{currentVersion}{CLASSIFIED_BUILD ? '（涉密版）' : ''}</span>
                 <p className="text-medium text-gray-600 mt-1">
                     实时笔记与纪要，数据始终不离开你的电脑。
                 </p>

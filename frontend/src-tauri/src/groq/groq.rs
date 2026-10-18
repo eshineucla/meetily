@@ -61,6 +61,7 @@ fn is_chat_model(model_id: &str) -> bool {
         && !id.contains("tool-use")
 }
 
+#[cfg(feature = "online")]
 /// Fetch Groq models from API
 ///
 /// # Arguments
@@ -162,4 +163,11 @@ pub fn clear_cache() {
         *cache = None;
         log::info!("Groq models cache cleared");
     }
+}
+
+/// The classified build has no cloud providers (M3-02)
+#[cfg(not(feature = "online"))]
+#[command]
+pub async fn get_groq_models(_api_key: Option<String>) -> Result<Vec<GroqModel>, String> {
+    Err(crate::build_variant::CLOUD_DISABLED.to_string())
 }

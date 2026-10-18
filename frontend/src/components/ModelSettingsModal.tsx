@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { CLOUD_PROVIDERS_ENABLED, CLASSIFIED_BUILD } from '@/config/features';
 import { useSidebar } from './Sidebar/SidebarProvider';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
@@ -875,12 +876,12 @@ export function ModelSettingsModal({
               </SelectTrigger>
               <SelectContent className="max-h-64 overflow-y-auto">
                 <SelectItem value="builtin-ai">内置 AI（离线，无需 API）</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
+                {CLOUD_PROVIDERS_ENABLED && <SelectItem value="claude">Claude</SelectItem>}
                 <SelectItem value="custom-openai">自定义服务器（OpenAI 兼容）</SelectItem>
-                <SelectItem value="groq">Groq</SelectItem>
+                {CLOUD_PROVIDERS_ENABLED && <SelectItem value="groq">Groq</SelectItem>}
                 <SelectItem value="ollama">Ollama</SelectItem>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="openrouter">OpenRouter</SelectItem>
+                {CLOUD_PROVIDERS_ENABLED && <SelectItem value="openai">OpenAI</SelectItem>}
+                {CLOUD_PROVIDERS_ENABLED && <SelectItem value="openrouter">OpenRouter</SelectItem>}
               </SelectContent>
             </Select>
 
@@ -957,7 +958,9 @@ export function ModelSettingsModal({
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                OpenAI 兼容 API 的基础 URL
+                {CLASSIFIED_BUILD
+                  ? 'OpenAI 兼容 API 的基础 URL。涉密版只能填写本机或内网地址'
+                  : 'OpenAI 兼容 API 的基础 URL'}
               </p>
             </div>
 
