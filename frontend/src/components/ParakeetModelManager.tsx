@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { SENSE_VOICE_MODEL } from '@/constants/modelDefaults';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -322,7 +323,7 @@ export function ParakeetModelManager({
         return newSet;
       });
 
-      const errorMessage = err instanceof Error ? err.message : '下载失败';
+      const errorMessage = err instanceof Error ? err.message : (String(err) || '下载失败');
       setModels(prev =>
         prev.map(model =>
           model.name === modelName ? { ...model, status: { Error: errorMessage } } : model
@@ -396,11 +397,12 @@ export function ParakeetModelManager({
     );
   }
 
+  // SenseVoice is the Chinese model; the Parakeet models only handle English and European languages
   const recommendedModel = models.find(m =>
-    m.name === 'parakeet-tdt-0.6b-v3-int8'
+    m.name === SENSE_VOICE_MODEL
   );
   const otherModels = models.filter(m =>
-    m.name !== 'parakeet-tdt-0.6b-v3-int8'
+    m.name !== SENSE_VOICE_MODEL
   );
 
   return (

@@ -133,6 +133,7 @@ pub async fn builtin_ai_download_model<R: Runtime>(
     state: State<'_, ModelManagerState>,
     model_name: String,
 ) -> Result<(), String> {
+    crate::build_variant::check_model_download()?;
     let manager = {
         // Ensure manager is initialized
         {

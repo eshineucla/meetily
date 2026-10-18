@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 use tauri::command;
-use crate::analytics::{AnalyticsClient, AnalyticsConfig};
+use crate::analytics::AnalyticsClient;
+#[cfg(feature = "online")]
+use crate::analytics::AnalyticsConfig;
 
 // Global analytics client
 static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::sync::Mutex::new(None);
@@ -9,8 +11,10 @@ static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::s
 // Analytics is switched off in this build (M1-02): init_analytics never creates a
 // PostHog client, so no event can leave the machine even if the frontend calls it.
 // The client code stays until the classified build removes it (M3-02).
+#[cfg_attr(not(feature = "online"), allow(dead_code))]
 const ANALYTICS_ENABLED: bool = false;
 
+#[cfg(feature = "online")]
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
     if !ANALYTICS_ENABLED {
@@ -28,6 +32,13 @@ pub async fn init_analytics() -> Result<(), String> {
     let mut guard = ANALYTICS_CLIENT.lock().unwrap();
     *guard = Some(client);
     
+    Ok(())
+}
+
+/// The classified build has no analytics key or endpoint compiled in
+#[cfg(not(feature = "online"))]
+#[command]
+pub async fn init_analytics() -> Result<(), String> {
     Ok(())
 }
 

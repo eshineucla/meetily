@@ -38,6 +38,7 @@ struct OpenRouterResponse {
     data: Vec<OpenRouterApiModel>,
 }
 
+#[cfg(feature = "online")]
 #[command]
 pub fn get_openrouter_models() -> Result<Vec<OpenRouterModel>, String> {
     let client = Client::new();
@@ -70,4 +71,11 @@ pub fn get_openrouter_models() -> Result<Vec<OpenRouterModel>, String> {
         .collect();
 
     Ok(models)
+}
+
+/// The classified build has no cloud providers (M3-02)
+#[cfg(not(feature = "online"))]
+#[command]
+pub fn get_openrouter_models() -> Result<Vec<OpenRouterModel>, String> {
+    Err(crate::build_variant::CLOUD_DISABLED.to_string())
 }

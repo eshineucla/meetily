@@ -36,6 +36,7 @@ pub(crate) use perf_trace;
 
 // Declare audio module
 pub mod analytics;
+pub mod build_variant;
 pub mod api;
 pub mod audio;
 pub mod config;
@@ -54,6 +55,7 @@ pub mod summary;
 pub mod tray;
 pub mod transcript_import;
 pub mod minutes_docx;
+pub mod model_pack;
 pub mod utils;
 pub mod whisper_engine;
 
@@ -464,11 +466,16 @@ pub fn run() {
         }));
     }
 
+    // The classified build has no auto-updater
+    #[cfg(feature = "online")]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
     builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(Arc::new(RwLock::new(
@@ -836,6 +843,10 @@ pub fn run() {
             transcript_import::read_transcript_file_command,
             transcript_import::import_transcript_text_command,
             minutes_docx::commands::export_minutes_docx_command,
+            build_variant::is_classified_build,
+            model_pack::commands::model_pack_list_installed,
+            model_pack::commands::model_pack_import,
+            model_pack::commands::model_pack_export,
             minutes_docx::commands::get_minutes_template_command,
             minutes_docx::commands::choose_minutes_template_command,
             minutes_docx::commands::clear_minutes_template_command,

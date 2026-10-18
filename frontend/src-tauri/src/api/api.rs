@@ -1206,6 +1206,7 @@ pub async fn api_save_custom_openai_config<R: Runtime>(
     if !endpoint.starts_with("http://") && !endpoint.starts_with("https://") {
         return Err("Endpoint must start with http:// or https://".to_string());
     }
+    crate::build_variant::check_endpoint(&endpoint)?;
 
     // Validate optional numeric parameters
     if let Some(temp) = temperature {
@@ -1296,6 +1297,7 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
     if !endpoint.starts_with("http://") && !endpoint.starts_with("https://") {
         return Err("Endpoint must start with http:// or https://".to_string());
     }
+    crate::build_variant::check_endpoint(&endpoint)?;
 
     // Build the URL - append /chat/completions to the base endpoint
     let url = format!("{}/chat/completions", endpoint.trim_end_matches('/'));

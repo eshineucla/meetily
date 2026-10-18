@@ -122,7 +122,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="localWhisper">🏠 本地 Whisper（推荐，支持中文）</SelectItem>
-                                    <SelectItem value="parakeet">⚡ Parakeet（仅支持英文和欧洲语言）</SelectItem>
+                                    <SelectItem value="parakeet">⚡ SenseVoice 中文 / Parakeet 英文（ONNX 引擎）</SelectItem>
                                     {/* <SelectItem value="deepgram">☁️ Deepgram (Backup)</SelectItem>
                                     <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
                                     <SelectItem value="groq">☁️ Groq</SelectItem>

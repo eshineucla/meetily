@@ -1,4 +1,5 @@
 use crate::parakeet_engine::model::ParakeetModel;
+use crate::parakeet_engine::sense_voice::SenseVoiceModel;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -79,6 +80,22 @@ pub struct ModelInfo {
     pub speed: String,     // Performance description
     pub status: ModelStatus,
     pub description: String,
+    pub family: ModelFamily,
+}
+
+/// Which ONNX model architecture a catalogued model uses
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum ModelFamily {
+    /// NVIDIA Parakeet TDT: English and European languages only
+    Parakeet,
+    /// FunASR SenseVoice-Small: Chinese, English, Cantonese, Japanese, Korean
+    SenseVoice,
+}
+
+/// A loaded model of either family; both share download, validation and lifecycle code
+enum LoadedModel {
+    Parakeet(ParakeetModel),
+    SenseVoice(SenseVoiceModel),
 }
 
 #[derive(Clone, Copy)]
@@ -89,6 +106,7 @@ struct ArtifactSpec {
 
 struct ModelSpec {
     name: &'static str,
+    family: ModelFamily,
     size_mb: u32,
     quantization: QuantizationType,
     speed: &'static str,
@@ -117,9 +135,28 @@ const PARAKEET_V2_ARTIFACTS: &[ArtifactSpec] = &[
     ArtifactSpec { filename: "vocab.txt", exact_bytes: 9_384 },
 ];
 
+/// sherpa-onnx export of SenseVoiceSmall; sizes match the files in its 2024-07-17 release
+const SENSE_VOICE_ARTIFACTS: &[ArtifactSpec] = &[
+    ArtifactSpec { filename: "model.int8.onnx", exact_bytes: 239_233_841 },
+    ArtifactSpec { filename: "tokens.txt", exact_bytes: 315_894 },
+];
+
+pub const SENSE_VOICE_MODEL_NAME: &str = "sense-voice-small-int8";
+
 const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
     ModelSpec {
+        name: SENSE_VOICE_MODEL_NAME,
+        family: ModelFamily::SenseVoice,
+        size_mb: 229,
+        quantization: QuantizationType::Int8,
+        speed: "很快（中文推荐）",
+        description: "SenseVoice（阿里 FunASR），中文专用，同时支持英文、粤语、日语、韩语，自动加标点",
+        source_base_url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main",
+        artifacts: SENSE_VOICE_ARTIFACTS,
+    },
+    ModelSpec {
         name: "parakeet-tdt-0.6b-v3-int8",
+        family: ModelFamily::Parakeet,
         size_mb: 670,
         quantization: QuantizationType::Int8,
         speed: "Ultra Fast (v3)",
@@ -129,6 +166,7 @@ const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
     },
     ModelSpec {
         name: "parakeet-tdt-0.6b-v2-int8",
+        family: ModelFamily::Parakeet,
         size_mb: 661,
         quantization: QuantizationType::Int8,
         speed: "Fast (v2)",
@@ -137,6 +175,14 @@ const PARAKEET_MODEL_SPECS: &[ModelSpec] = &[
         artifacts: PARAKEET_V2_ARTIFACTS,
     },
 ];
+
+/// `(model, file name, exact size)` of every ONNX engine model file, for model packs
+pub fn model_pack_files() -> Vec<(&'static str, &'static str, u64)> {
+    PARAKEET_MODEL_SPECS
+        .iter()
+        .flat_map(|spec| spec.artifacts.iter().map(move |a| (spec.name, a.filename, a.exact_bytes)))
+        .collect()
+}
 
 fn find_model_spec(model_name: &str) -> Option<&'static ModelSpec> {
     PARAKEET_MODEL_SPECS
@@ -262,7 +308,7 @@ impl From<std::io::Error> for ParakeetEngineError {
 
 pub struct ParakeetEngine {
     models_dir: PathBuf,
-    current_model: Arc<RwLock<Option<ParakeetModel>>>,
+    current_model: Arc<RwLock<Option<LoadedModel>>>,
     current_model_name: Arc<RwLock<Option<String>>>,
     model_lifecycle_lock: Mutex<()>,
     pub(crate) available_models: Arc<RwLock<HashMap<String, ModelInfo>>>,
@@ -372,6 +418,7 @@ impl ParakeetEngine {
                     speed: spec.speed.to_string(),
                     status,
                     description: spec.description.to_string(),
+                    family: spec.family,
                 });
             }
 
@@ -459,6 +506,7 @@ impl ParakeetEngine {
                 log::info!("Loading Parakeet model: {}", model_name);
 
                 let quantized = model_info.quantization == QuantizationType::Int8;
+                let family = model_info.family;
                 let model_path = model_info.path.clone();
                 #[cfg(test)]
                 let model_lifecycle_test_hook = self.load_test_hook().await;
@@ -470,8 +518,11 @@ impl ParakeetEngine {
                         hook.load_started.notify_one();
                         runtime_handle.block_on(hook.continue_load.notified());
                     }
-                    ParakeetModel::new(&model_path, quantized)
-                        .map_err(|error| error.to_string())
+                    match family {
+                        ModelFamily::Parakeet => ParakeetModel::new(&model_path, quantized).map(LoadedModel::Parakeet),
+                        ModelFamily::SenseVoice => SenseVoiceModel::new(&model_path).map(LoadedModel::SenseVoice),
+                    }
+                    .map_err(|error| error.to_string())
                 })
                 .await
                 .map_err(|error| {
@@ -553,14 +604,19 @@ impl ParakeetEngine {
             duration_seconds
         );
 
-        // Transcribe using Parakeet model
-        let result = model
-            .transcribe_samples(audio_data)
-            .map_err(|e| anyhow!("Parakeet transcription failed: {}", e))?;
+        let text = match model {
+            LoadedModel::Parakeet(model) => model
+                .transcribe_samples(audio_data)
+                .map(|result| result.text)
+                .map_err(|e| anyhow!("Parakeet transcription failed: {}", e))?,
+            LoadedModel::SenseVoice(model) => model
+                .transcribe_samples(&audio_data)
+                .map_err(|e| anyhow!("SenseVoice transcription failed: {}", e))?,
+        };
 
-        log::debug!("Parakeet transcription result: '{}'", result.text);
+        log::debug!("Parakeet engine transcription result: '{}'", text);
 
-        Ok(result.text)
+        Ok(text)
     }
 
     /// Get the models directory path
@@ -1246,6 +1302,7 @@ mod tests {
     ];
     const SMALL_MODEL_SPECS: &[ModelSpec] = &[ModelSpec {
         name: TEST_MODEL_NAME,
+        family: ModelFamily::Parakeet,
         size_mb: 1,
         quantization: QuantizationType::Int8,
         speed: "test",
@@ -1358,6 +1415,7 @@ mod tests {
                 speed: "test".to_string(),
                 status: ModelStatus::Missing,
                 description: "test model".to_string(),
+                family: ModelFamily::Parakeet,
             },
         );
         (temp_dir, engine, model_dir)

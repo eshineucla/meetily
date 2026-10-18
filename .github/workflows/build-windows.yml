@@ -48,8 +48,14 @@ env:
 
 jobs:
   build-windows:
-    name: Build Windows (x64)
+    name: Build Windows (x64, ${{ matrix.variant }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # standard: the normal build. classified (涉密版): compiled without the `online`
+        # feature, so cloud summary providers, analytics and the updater are left out.
+        variant: [standard, classified]
     permissions:
       contents: write
 
@@ -537,7 +543,7 @@ jobs:
         with:
           workspaces: ". -> target"
           prefix-key: windows-portable-v1
-          key: windows-x64-vulkan-v2
+          key: windows-x64-vulkan-v2-${{ matrix.variant }}
 
       - name: Install Vulkan SDK
         uses: humbletim/install-vulkan-sdk@v1.2
@@ -705,6 +711,20 @@ jobs:
           key: ${{ runner.os }}-onnxruntime-x86_64-pc-windows-msvc-${{ hashFiles('frontend/src-tauri/build/onnxruntime.rs') }}
 
 
+      - name: Configure build variant
+        id: variant
+        shell: bash
+        run: |
+          if [[ "${{ matrix.variant }}" == "classified" ]]; then
+            # The frontend hides cloud providers; tauri.classified.conf.json drops the updater
+            echo "NEXT_PUBLIC_BUILD_VARIANT=classified" >> "$GITHUB_ENV"
+            echo "args=--config src-tauri/tauri.classified.conf.json -- --no-default-features" >> "$GITHUB_OUTPUT"
+            echo "suffix=-classified" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "suffix=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -719,7 +739,26 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         with:
           projectPath: frontend
-          args: --target x86_64-pc-windows-msvc --features vulkan ${{ steps.build-profile.outputs.args }} ${{ steps.windows-portability.outputs.args }}
+          args: --target x86_64-pc-windows-msvc --features vulkan ${{ steps.build-profile.outputs.args }} ${{ steps.windows-portability.outputs.args }} ${{ steps.variant.outputs.args }}
+
+      - name: Check classified build has no cloud endpoints
+        if: ${{ matrix.variant == 'classified' }}
+        shell: bash
+        run: |
+          # Every host the standard build can reach outside the user's network for summaries,
+          # analytics or updates. None of them may appear in the classified executable.
+          dir="target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}"
+          found=0
+          for exe in "$dir"/*.exe; do
+            for host in posthog.com api.openai.com api.anthropic.com api.groq.com openrouter.ai releases/latest/download/latest.json; do
+              if grep -a -q "$host" "$exe"; then
+                echo "::error::$exe contains $host"
+                found=1
+              fi
+            done
+            echo "Checked $exe"
+          done
+          exit $found
 
       - name: Verify build artifacts
         shell: bash
@@ -731,7 +770,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' || github.event.inputs.upload-artifacts == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: meetily-windows-x64-${{ steps.build-profile.outputs.profile }}-${{ steps.get-version.outputs.version }}
+          name: meetily-windows-x64-${{ steps.build-profile.outputs.profile }}-${{ steps.get-version.outputs.version }}${{ steps.variant.outputs.suffix }}
           path: |
             target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}/bundle/msi/*.msi
             target/x86_64-pc-windows-msvc/${{ steps.build-profile.outputs.profile }}/bundle/msi/*.msi.sig

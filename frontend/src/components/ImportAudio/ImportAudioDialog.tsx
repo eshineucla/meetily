@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { SENSE_VOICE_MODEL } from '@/constants/modelDefaults';
 import {
   Upload,
   Globe,
@@ -369,7 +370,9 @@ export function ImportAudioDialog({
                             <span className="text-sm font-medium">语言</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Parakeet 仅支持英文和欧洲语言，不支持中文。转写中文请选择 Whisper 模型。
+                            {selectedModel?.name === SENSE_VOICE_MODEL
+                              ? 'SenseVoice 会自动识别语言（中文、英文、粤语等），无需手动指定。'
+                              : 'Parakeet 仅支持英文和欧洲语言，不支持中文。转写中文请选择 SenseVoice 或 Whisper 模型。'}
                           </p>
                         </div>
                       )}

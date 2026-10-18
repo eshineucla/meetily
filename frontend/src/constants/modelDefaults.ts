@@ -16,6 +16,12 @@ export const DEFAULT_WHISPER_MODEL = 'large-v3-turbo-q5_0';
 export const DEFAULT_PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
 /**
+ * SenseVoice-Small (FunASR), served by the same ONNX engine as Parakeet.
+ * Chinese-first; keep in sync with SENSE_VOICE_MODEL_NAME in parakeet_engine.rs
+ */
+export const SENSE_VOICE_MODEL = 'sense-voice-small-int8';
+
+/**
  * Model defaults by provider type
  */
 export const MODEL_DEFAULTS = {

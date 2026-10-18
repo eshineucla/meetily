@@ -216,7 +216,7 @@ export function BuiltInModelManager({
       }
 
       // For real errors, show toast and remove from downloading
-      toast.error(`下载 ${modelName} 失败`);
+      toast.error(`下载 ${modelName} 失败`, { description: errorMsg });
 
       setDownloadingModels((prev) => {
         const newSet = new Set(prev);

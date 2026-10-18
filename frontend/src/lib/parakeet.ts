@@ -52,21 +52,27 @@ export interface ModelDisplayInfo {
 }
 
 export const MODEL_DISPLAY_CONFIG: Record<string, ModelDisplayInfo> = {
-  'parakeet-tdt-0.6b-v3-int8': {
-    friendlyName: '极速版',
-    icon: '⚡',
-    tagline: '实时 • 速度最快，准确度出色',
+  'sense-voice-small-int8': {
+    friendlyName: 'SenseVoice 中文版',
+    icon: '🀄',
+    tagline: '中文专用 • 速度很快，自动加标点，也支持英文和粤语',
     recommended: true,
     tier: 'fastest'
   },
+  'parakeet-tdt-0.6b-v3-int8': {
+    friendlyName: 'Parakeet 极速版',
+    icon: '⚡',
+    tagline: '实时 • 仅支持英文和欧洲语言，不支持中文',
+    tier: 'fastest'
+  },
   'parakeet-tdt-0.6b-v2-int8': {
-    friendlyName: '精简版',
+    friendlyName: 'Parakeet 精简版',
     icon: '📦',
-    tagline: '实时 • 体积更小',
+    tagline: '实时 • 仅支持英文，体积更小',
     tier: 'balanced'
   },
   'parakeet-tdt-0.6b-v3-fp32': {
-    friendlyName: '精准版',
+    friendlyName: 'Parakeet 精准版',
     icon: '🎯',
     tagline: '20 倍实时速度 • 准确度更高',
     tier: 'precise'
@@ -77,6 +83,13 @@ export const MODEL_DISPLAY_CONFIG: Record<string, ModelDisplayInfo> = {
 // Supported models: parakeet-tdt-0.6b in v2 and v3 variants
 // Source: https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx
 export const PARAKEET_MODEL_CONFIGS: Record<string, Partial<ParakeetModelInfo>> = {
+  'sense-voice-small-int8': {
+    description: 'SenseVoice（阿里 FunASR），中文专用，同时支持英文、粤语、日语、韩语',
+    size_mb: 229, // model.int8.onnx 228MB + tokens.txt 0.3MB
+    accuracy: 'High',
+    speed: 'Ultra Fast',
+    quantization: 'Int8'
+  },
   'parakeet-tdt-0.6b-v3-int8': {
     description: '在 M4 Max 上可实时转写，针对速度优化',
     size_mb: 670, // Actual download: 652MB encoder + 18.2MB decoder + 0.2MB extras

@@ -390,7 +390,7 @@ export function ModelManager({
         return newSet;
       });
 
-      const errorMessage = err instanceof Error ? err.message : '下载失败';
+      const errorMessage = err instanceof Error ? err.message : (String(err) || '下载失败');
       setModels(prev =>
         prev.map(model =>
           model.name === modelName ? { ...model, status: { Error: errorMessage } } : model

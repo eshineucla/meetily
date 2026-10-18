@@ -63,6 +63,7 @@ fn is_chat_model(model_id: &str) -> bool {
     id.starts_with("claude-")
 }
 
+#[cfg(feature = "online")]
 /// Fetch Anthropic models from API
 ///
 /// # Arguments
@@ -168,4 +169,11 @@ pub fn clear_cache() {
         *cache = None;
         log::info!("Anthropic models cache cleared");
     }
+}
+
+/// The classified build has no cloud providers (M3-02)
+#[cfg(not(feature = "online"))]
+#[command]
+pub async fn get_anthropic_models(_api_key: Option<String>) -> Result<Vec<AnthropicModel>, String> {
+    Err(crate::build_variant::CLOUD_DISABLED.to_string())
 }

@@ -380,6 +380,7 @@ pub async fn parakeet_download_model<R: Runtime>(
     app_handle: AppHandle<R>,
     model_name: String,
 ) -> Result<(), String> {
+    crate::build_variant::check_model_download()?;
     let engine = {
         let guard = PARAKEET_ENGINE.lock().unwrap();
         guard.as_ref().cloned()
@@ -500,6 +501,7 @@ pub async fn parakeet_retry_download<R: Runtime>(
     app_handle: AppHandle<R>,
     model_name: String,
 ) -> Result<(), String> {
+    crate::build_variant::check_model_download()?;
     log::info!("Retrying download for: {}", model_name);
 
     let engine = {

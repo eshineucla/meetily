@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { CLASSIFIED_BUILD } from '@/config/features';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,7 +12,7 @@ import {
   type TranscriptionProvider,
   type SummaryChoice,
 } from '@/contexts/OnboardingContext';
-import { DEFAULT_PARAKEET_MODEL } from '@/constants/modelDefaults';
+import { DEFAULT_PARAKEET_MODEL, SENSE_VOICE_MODEL } from '@/constants/modelDefaults';
 import { formatSummaryModelSizeLabelFromMb } from '@/lib/onboarding-summary-model';
 
 interface CatalogModel {
@@ -89,6 +90,7 @@ export function SetupOverviewStep() {
   const [isMac, setIsMac] = useState(false);
   const [whisperModels, setWhisperModels] = useState<CatalogModel[]>([]);
   const [parakeetModel, setParakeetModel] = useState<CatalogModel | null>(null);
+  const [senseVoiceModel, setSenseVoiceModel] = useState<CatalogModel | null>(null);
   const [recommendedWhisper, setRecommendedWhisper] = useState('');
   const [builtinModels, setBuiltinModels] = useState<BuiltinModel[]>([]);
   const [isTesting, setIsTesting] = useState(false);
@@ -117,7 +119,10 @@ export function SetupOverviewStep() {
 
     invoke('parakeet_init')
       .then(() => invoke<CatalogModel[]>('parakeet_get_available_models'))
-      .then((models) => setParakeetModel(models.find((m) => m.name === DEFAULT_PARAKEET_MODEL) ?? models[0] ?? null))
+      .then((models) => {
+        setParakeetModel(models.find((m) => m.name === DEFAULT_PARAKEET_MODEL) ?? null);
+        setSenseVoiceModel(models.find((m) => m.name === SENSE_VOICE_MODEL) ?? null);
+      })
       .catch((error) => console.warn('[SetupOverviewStep] Failed to list Parakeet models:', error));
 
     invoke<BuiltinModel[]>('builtin_ai_list_models')
@@ -191,6 +196,15 @@ export function SetupOverviewStep() {
               <Loader2 className="w-4 h-4 animate-spin" /> 正在读取模型列表…
             </div>
           )}
+          {senseVoiceModel && (
+            <Option
+              checked={transcriptionProvider === 'parakeet' && transcriptionModel === senseVoiceModel.name}
+              onSelect={() => pickTranscription('parakeet', senseVoiceModel.name)}
+              title="SenseVoice"
+              detail={`${sizeLabel(senseVoiceModel)}，中文专用，速度很快，自动加标点，也支持英文和粤语${downloadedLabel(senseVoiceModel)}`}
+              badge="中文专用"
+            />
+          )}
           {whisperOptions.map((o) => (
             <Option
               key={o.name}
@@ -203,7 +217,7 @@ export function SetupOverviewStep() {
           ))}
           {parakeetModel && (
             <Option
-              checked={transcriptionProvider === 'parakeet'}
+              checked={transcriptionProvider === 'parakeet' && transcriptionModel === parakeetModel.name}
               onSelect={() => pickTranscription('parakeet', parakeetModel.name)}
               title="Parakeet"
               detail={`${sizeLabel(parakeetModel)}，仅支持英文和欧洲语言，不支持中文${downloadedLabel(parakeetModel)}`}
@@ -241,7 +255,7 @@ export function SetupOverviewStep() {
           {summaryChoice === 'custom-openai' && (
             <div className="space-y-2 pl-7">
               <Input
-                placeholder="接口地址，例如 http://localhost:8000/v1"
+                placeholder={CLASSIFIED_BUILD ? '内网接口地址，例如 http://192.168.1.10:8000/v1' : '接口地址，例如 http://localhost:8000/v1'}
                 value={customOpenAI.endpoint}
                 onChange={(e) => setCustomOpenAI({ ...customOpenAI, endpoint: e.target.value })}
               />

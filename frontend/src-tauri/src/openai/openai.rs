@@ -93,6 +93,7 @@ fn is_chat_model(model_id: &str) -> bool {
         && !id.contains("audio")
 }
 
+#[cfg(feature = "online")]
 /// Fetch OpenAI models from API
 ///
 /// # Arguments
@@ -191,4 +192,11 @@ pub fn clear_cache() {
         *cache = None;
         log::info!("OpenAI models cache cleared");
     }
+}
+
+/// The classified build has no cloud providers (M3-02)
+#[cfg(not(feature = "online"))]
+#[command]
+pub async fn get_openai_models(_api_key: Option<String>) -> Result<Vec<OpenAIModel>, String> {
+    Err(crate::build_variant::CLOUD_DISABLED.to_string())
 }

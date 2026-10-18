@@ -1,0 +1,91 @@
+# Builds a model pack (zip) for machines that cannot download models, such as the classified
+# build. Import it in Settings → 偏好设置 → 模型包. The layout matches the app's models
+# directory; see frontend/src-tauri/src/model_pack/pack.rs.
+name: Model pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      sense_voice:
+        description: 'SenseVoice 中文转写模型（229 MB）'
+        type: boolean
+        default: true
+      whisper:
+        description: 'Whisper 模型'
+        type: choice
+        default: none
+        options:
+          - none
+          - large-v3-turbo-q5_0
+          - large-v3-turbo
+          - small
+      summary:
+        description: '内置纪要模型'
+        type: choice
+        default: qwen3.5-2b
+        options:
+          - none
+          - qwen3.5-2b
+          - qwen3.5-4b
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Download models
+        env:
+          SENSE_VOICE: ${{ inputs.sense_voice }}
+          WHISPER: ${{ inputs.whisper }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          set -euo pipefail
+          mkdir -p pack
+          cd pack
+          fetch() { curl -fL --retry 5 --retry-delay 10 -o "$1" "$2"; }
+          check_size() {
+            actual=$(stat -c %s "$1")
+            if [ "$actual" != "$2" ]; then echo "::error::$1 is $actual bytes, expected $2"; exit 1; fi
+          }
+
+          if [ "$SENSE_VOICE" = "true" ]; then
+            base=https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main
+            mkdir -p parakeet/sense-voice-small-int8
+            fetch parakeet/sense-voice-small-int8/model.int8.onnx "$base/model.int8.onnx"
+            fetch parakeet/sense-voice-small-int8/tokens.txt "$base/tokens.txt"
+            check_size parakeet/sense-voice-small-int8/model.int8.onnx 239233841
+            check_size parakeet/sense-voice-small-int8/tokens.txt 315894
+          fi
+
+          if [ "$WHISPER" != "none" ]; then
+            fetch "ggml-$WHISPER.bin" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$WHISPER.bin"
+          fi
+
+          case "$SUMMARY" in
+            qwen3.5-2b)
+              mkdir -p summary
+              fetch summary/Qwen3.5-2B-Q4_K_M.gguf https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf ;;
+            qwen3.5-4b)
+              mkdir -p summary
+              fetch summary/Qwen3.5-4B-Q4_K_M.gguf https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf ;;
+          esac
+
+          if [ -z "$(find . -type f)" ]; then echo "::error::No model selected"; exit 1; fi
+          find . -type f -exec ls -l {} \;
+          # Stored, not compressed: model weights do not compress, and storing keeps import fast
+          zip -0 -r ../model-pack.zip .
+          cd ..
+          sha256sum model-pack.zip | tee model-pack.zip.sha256
+
+      - name: Upload model pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-pack
+          path: |
+            model-pack.zip
+            model-pack.zip.sha256
+          compression-level: 0
+          retention-days: 30
