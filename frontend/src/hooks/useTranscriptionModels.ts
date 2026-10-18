@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { SENSE_VOICE_MODEL } from '@/constants/modelDefaults';
 import { invoke } from '@tauri-apps/api/core';
 
 export interface RawModelInfo {
@@ -74,7 +75,9 @@ export function useTranscriptionModels(
         .map((m) => ({
           provider: 'parakeet' as const,
           name: m.name,
-          displayName: `⚡ Parakeet: ${m.name}（仅支持英文和欧洲语言）`,
+          displayName: m.name === SENSE_VOICE_MODEL
+            ? `🀄 SenseVoice: ${m.name}（中文专用）`
+            : `⚡ Parakeet: ${m.name}（仅支持英文和欧洲语言）`,
           size_mb: m.size_mb,
         }));
       allModels.push(...availableParakeet);

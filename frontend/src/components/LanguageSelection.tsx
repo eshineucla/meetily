@@ -200,8 +200,8 @@ export function LanguageSelection({
         {/* Parakeet language limitation warning */}
         {isParakeet && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800">
-            <p className="font-medium">ℹ️ Parakeet 语言支持</p>
-            <p className="mt-1 text-xs">Parakeet 仅支持英文和欧洲语言，不支持中文，也不能手动指定语言。转写中文请使用 Whisper。</p>
+            <p className="font-medium">ℹ️ ONNX 引擎语言支持</p>
+            <p className="mt-1 text-xs">这个引擎自动识别语言，不能手动指定。SenseVoice 支持中文、英文和粤语；Parakeet 仅支持英文和欧洲语言。</p>
           </div>
         )}
 
