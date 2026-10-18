@@ -18,6 +18,7 @@ import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
+import { parseSummaryContent } from '@/lib/summary-content';
 
 export default function PageContent({
   meeting,
@@ -68,7 +69,18 @@ export default function PageContent({
   const autoGenerationStartedMeetingIdRef = useRef<string | null>(null);
 
   // Sidebar context
-  const { serverAddress } = useSidebar();
+  const { serverAddress, meetings: sidebarMeetings, setMeetings } = useSidebar();
+
+  // Whether the minutes are final (read-only)
+  const [isFinalized, setIsFinalized] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setIsFinalized(false);
+    invoke<boolean>('api_get_meeting_finalized', { meetingId: meeting.id })
+      .then((finalized) => { if (!cancelled) setIsFinalized(finalized); })
+      .catch((error) => console.error('Failed to read finalized state:', error));
+    return () => { cancelled = true; };
+  }, [meeting.id]);
 
   // Get model config from ConfigContext
   const { modelConfig, setModelConfig, isModelConfigLoading } = useConfig();
@@ -109,10 +121,10 @@ export default function PageContent({
       const { emit } = await import('@tauri-apps/api/event');
       await emit('model-config-updated', config);
 
-      toast.success('Model settings saved successfully');
+      toast.success('模型设置已保存');
     } catch (error) {
       console.error('Failed to save model config:', error);
-      toast.error('Failed to save model settings');
+      toast.error('保存模型设置失败');
     }
   };
 
@@ -141,6 +153,28 @@ export default function PageContent({
     meeting,
   });
 
+  const handleSetFinalized = async (finalized: boolean) => {
+    try {
+      // Keep unsaved edits before the minutes become read-only
+      if (finalized && meetingData.isSummaryDirty) {
+        await meetingData.saveAllChanges();
+      }
+      await invoke('api_set_meeting_finalized', { meetingId: meeting.id, finalized });
+      setIsFinalized(finalized);
+      setMeetings(sidebarMeetings.map((m) => (m.id === meeting.id ? { ...m, finalized } : m)));
+      toast.success(finalized ? '纪要已定稿' : '已取消定稿');
+    } catch (error) {
+      console.error('Failed to change finalized state:', error);
+      toast.error(finalized ? '定稿失败' : '取消定稿失败', { description: String(error) });
+    }
+  };
+
+  const handleSummaryRestored = async () => {
+    const response = await invoke<SummaryProcessResponse>('api_get_summary', { meetingId: meeting.id });
+    meetingData.setAiSummary(parseSummaryContent(response.data));
+    meetingData.setIsSummaryDirty(false);
+  };
+
   // Track page view
   useEffect(() => {
     Analytics.trackPageView('meeting_details');
@@ -161,6 +195,7 @@ export default function PageContent({
   useEffect(() => {
     if (
       !shouldAutoGenerate
+      || isFinalized
       || summaryGeneration.summaryStatus !== 'idle'
       || isModelConfigLoading
       || meetingData.transcripts.length === 0
@@ -175,6 +210,7 @@ export default function PageContent({
     void summaryGeneration.handleGenerateSummary('');
   }, [
     shouldAutoGenerate,
+    isFinalized,
     meeting.id,
     meetingData.transcripts.length,
     isModelConfigLoading,
@@ -249,6 +285,9 @@ export default function PageContent({
               onTemplateSelect={templates.handleTemplateSelection}
               isModelConfigLoading={isModelConfigLoading}
               onOpenModelSettings={handleRegisterModalOpen}
+              isFinalized={isFinalized}
+              onSetFinalized={handleSetFinalized}
+              onSummaryRestored={handleSummaryRestored}
             />
           }
         />

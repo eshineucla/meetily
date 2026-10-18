@@ -9,7 +9,11 @@ import { SummaryUpdaterButtonGroup } from './SummaryUpdaterButtonGroup';
 import Analytics from '@/lib/analytics';
 import { useEffect, useRef, useState, RefObject } from 'react';
 import { toast } from 'sonner';
-import { Languages, ChevronDown } from 'lucide-react';
+import { Languages, ChevronDown, History, Lock, LockOpen, Loader2, ClipboardCheck } from 'lucide-react';
+import { SummaryVersionsDialog } from './SummaryVersionsDialog';
+import { MinutesCheckPanel } from './MinutesCheckPanel';
+import { checkMinutes, MinutesCheckResult } from '@/lib/minutes-check';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { LanguagePickerPopover } from '@/components/LanguagePickerPopover';
@@ -54,6 +58,11 @@ interface SummaryPanelProps {
   onTemplateSelect: (templateId: string, templateName: string) => void;
   isModelConfigLoading?: boolean;
   onOpenModelSettings?: (openFn: () => void) => void;
+  /** The minutes are final: read-only, no regeneration */
+  isFinalized: boolean;
+  onSetFinalized: (finalized: boolean) => Promise<void>;
+  /** Reload the summary after a saved version was restored */
+  onSummaryRestored: () => Promise<void>;
 }
 
 export function SummaryPanel({
@@ -84,7 +93,88 @@ export function SummaryPanel({
   onTemplateSelect,
   isModelConfigLoading = false,
   onOpenModelSettings,
+  isFinalized,
+  onSetFinalized,
+  onSummaryRestored,
 }: SummaryPanelProps) {
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [isTogglingFinal, setIsTogglingFinal] = useState(false);
+  // Bumped after a restore so the editor reloads the restored content
+  const [editorKey, setEditorKey] = useState(0);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<MinutesCheckResult | null>(null);
+  // The check was opened by "定稿", so it offers to finalize
+  const [checkBeforeFinalize, setCheckBeforeFinalize] = useState(false);
+
+  const runCheck = async (): Promise<MinutesCheckResult | null> => {
+    setIsChecking(true);
+    setCheckOpen(true);
+    try {
+      const markdown = (await summaryRef.current?.getMarkdown()) || (aiSummary as { markdown?: string } | null)?.markdown || '';
+      const page = await invoke<{ transcripts: Transcript[] }>('api_get_meeting_transcripts', {
+        meetingId: meeting.id,
+        limit: 1000000,
+        offset: 0,
+      });
+      const result = checkMinutes(markdown, page.transcripts.map((t) => t.text).join('\n'));
+      setCheckResult(result);
+      return result;
+    } catch (error) {
+      console.error('Minutes check failed:', error);
+      toast.error('检查失败', { description: String(error) });
+      setCheckOpen(false);
+      return null;
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExportDocx = async () => {
+    setIsExporting(true);
+    try {
+      const markdown = (await summaryRef.current?.getMarkdown()) || (aiSummary as { markdown?: string } | null)?.markdown || '';
+      const result = await invoke<{ path: string; warnings: string[] } | null>('export_minutes_docx_command', {
+        title: meetingTitle,
+        markdown,
+      });
+      if (!result) return;
+      if (result.warnings.length > 0) {
+        toast.warning('已导出，但版式有差异', { description: result.warnings.join('\n'), duration: 10000 });
+      } else {
+        toast.success('已导出 Word 文档', { description: result.path });
+      }
+    } catch (error) {
+      console.error('Docx export failed:', error);
+      toast.error('导出失败', { description: String(error) });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const setFinalized = async (finalized: boolean) => {
+    setIsTogglingFinal(true);
+    try {
+      await onSetFinalized(finalized);
+    } finally {
+      setIsTogglingFinal(false);
+    }
+  };
+
+  const handleFinalizeClick = async () => {
+    if (isFinalized) {
+      await setFinalized(false);
+      return;
+    }
+    // Check first; finalize straight away only when nothing is flagged
+    setCheckBeforeFinalize(true);
+    const result = await runCheck();
+    if (result && result.items.length > 0 && result.issueCount === 0) {
+      await setFinalized(true);
+      setCheckOpen(false);
+    }
+  };
   const [summaryLang, setSummaryLang] = useState<string | null>(null);
   const [summaryLangStorage, setSummaryLangStorage] = useState<SummaryLanguageStorage>('metadata');
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -104,11 +194,11 @@ export function SummaryPanel({
   activeMeetingIdRef.current = meeting.id;
   const { addRecent } = useRecentLanguages();
 
-  const effectiveLangLabel = summaryLang ? labelForCode(summaryLang) : 'Auto';
+  const effectiveLangLabel = summaryLang ? labelForCode(summaryLang) : '自动';
   const isLocalFallbackLanguage = summaryLangStorage === 'local_fallback';
   const autoSubtitle = isLocalFallbackLanguage
-    ? 'Saved on this device for folderless meetings'
-    : 'Uses dominant transcript language';
+    ? '无录音文件夹的会议，设置保存在本机'
+    : '使用转写稿中的主要语言';
 
   useEffect(() => {
     let cancelled = false;
@@ -124,8 +214,8 @@ export function SummaryPanel({
         }
       } catch (err) {
         console.error('Failed to load summary language:', err);
-        toast.warning('Could not load saved summary language', {
-          description: 'Using Auto until meeting metadata can be read.',
+        toast.warning('无法读取已保存的纪要语言', {
+          description: '在能读取会议元数据之前，将暂时使用“自动”。',
         });
         if (!cancelled && languageLoadVersionRef.current === loadVersion) setSummaryLang(null);
       }
@@ -157,8 +247,8 @@ export function SummaryPanel({
             setSummaryLang(saved.language);
             setSummaryLangStorage(saved.storage);
             if (saved.storage === 'local_fallback') {
-              toast.info('Summary language saved on this device', {
-                description: 'This meeting has no recording folder, so the preference cannot be written to meeting metadata.',
+              toast.info('纪要语言已保存在本机', {
+                description: '该会议没有录音文件夹，因此无法将此设置写入会议元数据。',
               });
             }
             if (request.language) {
@@ -175,7 +265,7 @@ export function SummaryPanel({
             activeMeetingIdRef.current === request.meetingId
           ) {
             console.error('Failed to persist summary language:', err);
-            toast.error('Failed to save summary language');
+            toast.error('保存纪要语言失败');
             setSummaryLang(request.rollback.language);
             setSummaryLangStorage(request.rollback.storage);
             return;
@@ -219,8 +309,8 @@ export function SummaryPanel({
         <Button
           variant="outline"
           size="sm"
-          title={`Summary language: ${effectiveLangLabel}${isLocalFallbackLanguage ? ' (saved on this device)' : ''}`}
-          aria-label="Set summary language"
+          title={`纪要语言：${effectiveLangLabel}${isLocalFallbackLanguage ? '（保存在本机）' : ''}`}
+          aria-label="设置纪要语言"
         >
           <Languages size={18} />
           <span className="hidden @[40rem]:inline">{effectiveLangLabel}</span>
@@ -246,7 +336,7 @@ export function SummaryPanel({
       {/* Top-level actions — always visible, same pattern as TranscriptPanel */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-center w-full min-w-0 gap-2 flex-wrap">
-          <div className="flex-shrink-0 min-w-0">
+          {!isFinalized && <div className="flex-shrink-0 min-w-0">
             <SummaryGeneratorButtonGroup
               modelConfig={modelConfig}
               setModelConfig={setModelConfig}
@@ -264,7 +354,7 @@ export function SummaryPanel({
               onOpenModelSettings={onOpenModelSettings}
               languageSlot={transcripts.length > 0 || hasSummary ? languageSlot : undefined}
             />
-          </div>
+          </div>}
 
           {hasSummary && !isSummaryLoading && (
             <div className="flex-shrink-0">
@@ -273,17 +363,66 @@ export function SummaryPanel({
                 isDirty={isSummaryDirty}
                 onSave={onSaveAll}
                 onCopy={onCopySummary}
+                readOnly={isFinalized}
+                onExportDocx={handleExportDocx}
+                isExporting={isExporting}
               />
             </div>
           )}
+
+          {hasSummary && !isSummaryLoading && (
+            <div className="flex-shrink-0 flex gap-2">
+              <Button variant="outline" size="sm" title="查看、对比和恢复以前生成的纪要" onClick={() => setVersionsOpen(true)}>
+                <History />
+                <span className="hidden @[40rem]:inline">版本</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                title="检查责任人、完成时限和原文出处"
+                disabled={isChecking}
+                onClick={() => {
+                  setCheckBeforeFinalize(false);
+                  void runCheck();
+                }}
+              >
+                <ClipboardCheck />
+                <span className="hidden @[40rem]:inline">检查</span>
+              </Button>
+              <Button
+                variant={isFinalized ? 'outline' : 'default'}
+                size="sm"
+                title={isFinalized ? '取消定稿后才能修改或重新生成' : '先检查，再定稿；定稿后纪要只读'}
+                disabled={isTogglingFinal || isChecking}
+                onClick={() => void handleFinalizeClick()}
+              >
+                {isTogglingFinal ? <Loader2 className="animate-spin" /> : isFinalized ? <LockOpen /> : <Lock />}
+                <span className="hidden @[40rem]:inline">{isFinalized ? '取消定稿' : '定稿'}</span>
+              </Button>
+            </div>
+          )}
         </div>
+        {isFinalized && (
+          <p className="mt-3 text-center text-xs text-green-700">纪要已定稿，当前为只读。要修改或重新生成，请先取消定稿。</p>
+        )}
       </div>
+
+      <SummaryVersionsDialog
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        meetingId={meeting.id}
+        readOnly={isFinalized}
+        onRestored={async () => {
+          await onSummaryRestored();
+          setEditorKey((key) => key + 1);
+        }}
+      />
 
       {isSummaryLoading ? (
         <div className="flex items-center justify-center flex-1">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-gray-600">Generating AI Summary...</p>
+            <p className="text-gray-600">正在生成 AI 纪要…</p>
           </div>
         </div>
       ) : !hasSummary ? (
@@ -294,10 +433,13 @@ export function SummaryPanel({
           error={summaryError}
         />
       ) : (
+        <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
           <div className="p-6 w-full">
             <BlockNoteSummaryView
+              key={editorKey}
               ref={summaryRef}
+              editable={!isFinalized}
               summaryData={aiSummary}
               onSave={onSaveSummary}
               onSummaryChange={onSummaryChange}
@@ -323,6 +465,23 @@ export function SummaryPanel({
               <p className="text-sm font-medium">{getSummaryStatusMessage(summaryStatus)}</p>
             </div>
           )}
+        </div>
+        {checkOpen && (
+          <MinutesCheckPanel
+            result={checkResult}
+            isChecking={isChecking}
+            onClose={() => setCheckOpen(false)}
+            onRecheck={() => void runCheck()}
+            onFinalizeAnyway={
+              checkBeforeFinalize && !isFinalized
+                ? async () => {
+                    await setFinalized(true);
+                    setCheckOpen(false);
+                  }
+                : undefined
+            }
+          />
+        )}
         </div>
       )}
     </div>

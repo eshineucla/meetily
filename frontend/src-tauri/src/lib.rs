@@ -52,6 +52,8 @@ pub mod parakeet_engine;
 pub mod state;
 pub mod summary;
 pub mod tray;
+pub mod transcript_import;
+pub mod minutes_docx;
 pub mod utils;
 pub mod whisper_engine;
 
@@ -743,6 +745,10 @@ pub fn run() {
             // Summary commands
             summary::commands::api_process_transcript,
             summary::commands::api_get_summary,
+            summary::commands::api_list_summary_versions,
+            summary::commands::api_restore_summary_version,
+            summary::commands::api_get_meeting_finalized,
+            summary::commands::api_set_meeting_finalized,
             summary::commands::api_save_meeting_summary,
             summary::commands::api_get_meeting_summary_language,
             summary::commands::api_save_meeting_summary_language,
@@ -826,6 +832,13 @@ pub fn run() {
             audio::retranscription::cancel_retranscription_command,
             audio::retranscription::is_retranscription_in_progress_command,
             // Import audio commands
+            transcript_import::select_transcript_file_command,
+            transcript_import::read_transcript_file_command,
+            transcript_import::import_transcript_text_command,
+            minutes_docx::commands::export_minutes_docx_command,
+            minutes_docx::commands::get_minutes_template_command,
+            minutes_docx::commands::choose_minutes_template_command,
+            minutes_docx::commands::clear_minutes_template_command,
             audio::import::select_and_validate_audio_command,
             audio::import::validate_audio_file_command,
             audio::import::start_import_audio_command,

@@ -9,6 +9,9 @@ pub const DAILY_STANDUP: &str = include_str!("../../../templates/daily_standup.j
 /// Standard meeting notes template
 pub const STANDARD_MEETING: &str = include_str!("../../../templates/standard_meeting.json");
 
+/// Chinese official-document style minutes (纪要)
+pub const GOVERNMENT_MINUTES: &str = include_str!("../../../templates/government_minutes.json");
+
 /// Registry of all built-in templates
 ///
 /// Maps template identifiers to their embedded JSON content
@@ -16,6 +19,7 @@ pub fn get_builtin_templates() -> Vec<(&'static str, &'static str)> {
     vec![
         ("daily_standup", DAILY_STANDUP),
         ("standard_meeting", STANDARD_MEETING),
+        ("government_minutes", GOVERNMENT_MINUTES),
     ]
 }
 
@@ -30,13 +34,14 @@ pub fn get_builtin_template(id: &str) -> Option<&'static str> {
     match id {
         "daily_standup" => Some(DAILY_STANDUP),
         "standard_meeting" => Some(STANDARD_MEETING),
+        "government_minutes" => Some(GOVERNMENT_MINUTES),
         _ => None,
     }
 }
 
 /// List all built-in template identifiers
 pub fn list_builtin_template_ids() -> Vec<&'static str> {
-    vec!["daily_standup", "standard_meeting"]
+    vec!["daily_standup", "standard_meeting", "government_minutes"]
 }
 
 #[cfg(test)]
@@ -60,6 +65,7 @@ mod tests {
     fn test_get_builtin_template() {
         assert!(get_builtin_template("daily_standup").is_some());
         assert!(get_builtin_template("standard_meeting").is_some());
+        assert!(get_builtin_template("government_minutes").is_some());
         assert!(get_builtin_template("nonexistent").is_none());
     }
 }

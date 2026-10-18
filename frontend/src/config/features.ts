@@ -2,3 +2,6 @@
 // and is removed from the classified build in stage 3 (M3-02).
 export const ANALYTICS_ENABLED = false;
 export const UPDATES_ENABLED = false;
+
+// Upstream beta features (audio import and retranscription) are switched off.
+export const BETA_FEATURES_ENABLED = false;

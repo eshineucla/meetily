@@ -6,6 +6,49 @@ import { listen } from '@tauri-apps/api/event';
 import type { PermissionStatus, OnboardingPermissions } from '@/types/onboarding';
 import { resolveOnboardingSummaryModelStatus } from '@/lib/onboarding-summary-model';
 import { DEFAULT_WHISPER_MODEL } from '@/constants/modelDefaults';
+import type { ParakeetDownloadProgressEvent } from '@/lib/parakeet';
+
+/** Transcription engine picked during onboarding; 'none' means transcript import only */
+export type TranscriptionProvider = 'whisper' | 'parakeet' | 'none';
+/** Summary setup picked during onboarding; 'later' configures nothing now */
+export type SummaryChoice = 'builtin' | 'custom-openai' | 'later';
+
+export interface CustomOpenAIChoice {
+  endpoint: string;
+  model: string;
+  apiKey: string;
+}
+
+interface OnboardingChoices {
+  transcriptionProvider: TranscriptionProvider;
+  transcriptionModel: string;
+  summaryChoice: SummaryChoice;
+  customOpenAI: CustomOpenAIChoice;
+}
+
+// Persisted so the choices survive an app restart before onboarding completes.
+// The API key is not persisted; it is saved to the database on completion.
+const ONBOARDING_CHOICES_KEY = 'onboardingChoices';
+
+function loadOnboardingChoices(): Partial<OnboardingChoices> {
+  try {
+    return JSON.parse(localStorage.getItem(ONBOARDING_CHOICES_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveOnboardingChoices(choices: OnboardingChoices) {
+  try {
+    const { customOpenAI, ...rest } = choices;
+    localStorage.setItem(
+      ONBOARDING_CHOICES_KEY,
+      JSON.stringify({ ...rest, customOpenAI: { ...customOpenAI, apiKey: '' } })
+    );
+  } catch {
+    // Non-critical
+  }
+}
 
 interface WhisperModelInfo {
   name: string;
@@ -30,6 +73,23 @@ export async function getWhisperModelState(modelName: string): Promise<{ availab
   const models = await invoke<WhisperModelInfo[]>('whisper_get_available_models');
   const model = models.find((m) => m.name === modelName);
   return { available: model?.status === 'Available', sizeMb: model?.size_mb ?? 0 };
+}
+
+// Whether the given Parakeet model is fully downloaded, plus its catalog size.
+export async function getParakeetModelState(modelName: string): Promise<{ available: boolean; sizeMb: number }> {
+  await invoke('parakeet_init');
+  const models = await invoke<WhisperModelInfo[]>('parakeet_get_available_models');
+  const model = models.find((m) => m.name === modelName);
+  return { available: model?.status === 'Available', sizeMb: model?.size_mb ?? 0 };
+}
+
+// Download state of the chosen transcription model ('none' counts as ready)
+export async function getTranscriptionModelState(
+  provider: TranscriptionProvider,
+  modelName: string
+): Promise<{ available: boolean; sizeMb: number }> {
+  if (provider === 'none') return { available: true, sizeMb: 0 };
+  return provider === 'parakeet' ? getParakeetModelState(modelName) : getWhisperModelState(modelName);
 }
 
 interface OnboardingStatus {
@@ -60,7 +120,10 @@ interface TranscriptionProgressInfo {
 
 interface OnboardingContextType {
   currentStep: number;
+  transcriptionProvider: TranscriptionProvider;
   transcriptionModel: string;
+  summaryChoice: SummaryChoice;
+  customOpenAI: CustomOpenAIChoice;
   transcriptionDownloaded: boolean;
   transcriptionProgress: number;
   transcriptionProgressInfo: TranscriptionProgressInfo;
@@ -79,6 +142,9 @@ interface OnboardingContextType {
   goNext: () => void;
   goPrevious: () => void;
   // Setters
+  setTranscriptionChoice: (provider: TranscriptionProvider, model: string) => void;
+  setSummaryChoice: (choice: SummaryChoice) => void;
+  setCustomOpenAI: (config: CustomOpenAIChoice) => void;
   setTranscriptionDownloaded: (value: boolean) => void;
   setSummaryModelDownloaded: (value: boolean) => void;
   setSelectedSummaryModel: (value: string) => void;
@@ -101,8 +167,21 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(undef
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [completed, setCompleted] = useState(false);
-  const [transcriptionModel, setTranscriptionModel] = useState<string>(DEFAULT_WHISPER_MODEL);
-  const transcriptionModelRef = useRef<string>(DEFAULT_WHISPER_MODEL);
+  const savedChoices = useRef(typeof window !== 'undefined' ? loadOnboardingChoices() : {}).current;
+  const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
+    savedChoices.transcriptionProvider ?? 'whisper'
+  );
+  const transcriptionProviderRef = useRef<TranscriptionProvider>(savedChoices.transcriptionProvider ?? 'whisper');
+  const [transcriptionModel, setTranscriptionModel] = useState<string>(
+    savedChoices.transcriptionModel ?? DEFAULT_WHISPER_MODEL
+  );
+  const transcriptionModelRef = useRef<string>(savedChoices.transcriptionModel ?? DEFAULT_WHISPER_MODEL);
+  // Set once the user has picked a transcription model, so the recommendation won't override it
+  const transcriptionChosenRef = useRef<boolean>(!!savedChoices.transcriptionModel);
+  const [summaryChoice, setSummaryChoiceState] = useState<SummaryChoice>(savedChoices.summaryChoice ?? 'builtin');
+  const [customOpenAI, setCustomOpenAIState] = useState<CustomOpenAIChoice>(
+    savedChoices.customOpenAI ?? { endpoint: '', model: '', apiKey: '' }
+  );
   const [transcriptionDownloaded, setTranscriptionDownloaded] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [transcriptionProgressInfo, setTranscriptionProgressInfo] = useState<TranscriptionProgressInfo>({
@@ -259,13 +338,32 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     };
   }, [currentStep, transcriptionDownloaded, summaryModelDownloaded, completed]);
 
-  // Resolve the Whisper model to download for this machine
+  // Default to the Whisper model recommended for this machine until the user picks one
   useEffect(() => {
     getRecommendedWhisperModel().then((model) => {
+      if (transcriptionChosenRef.current) return;
       transcriptionModelRef.current = model;
       setTranscriptionModel(model);
     });
   }, []);
+
+  useEffect(() => {
+    saveOnboardingChoices({ transcriptionProvider, transcriptionModel, summaryChoice, customOpenAI });
+  }, [transcriptionProvider, transcriptionModel, summaryChoice, customOpenAI]);
+
+  const setTranscriptionChoice = useCallback((provider: TranscriptionProvider, model: string) => {
+    transcriptionChosenRef.current = true;
+    transcriptionProviderRef.current = provider;
+    transcriptionModelRef.current = model;
+    setTranscriptionProvider(provider);
+    setTranscriptionModel(model);
+    // A new choice needs its own download check
+    setTranscriptionDownloaded(false);
+    setTranscriptionProgress(0);
+  }, []);
+
+  const setSummaryChoice = useCallback((choice: SummaryChoice) => setSummaryChoiceState(choice), []);
+  const setCustomOpenAI = useCallback((config: CustomOpenAIChoice) => setCustomOpenAIState(config), []);
 
   // Listen to Whisper download progress
   useEffect(() => {
@@ -308,10 +406,46 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
     );
 
+    // Parakeet reports its own events (chosen only for English/European meetings)
+    const unlistenParakeet = listen<ParakeetDownloadProgressEvent>(
+      'parakeet-model-download-progress',
+      (event) => {
+        const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+        if (modelName !== transcriptionModelRef.current) return;
+        if (status === 'cancelled') {
+          setTranscriptionDownloaded(false);
+          setTranscriptionProgress(0);
+          return;
+        }
+        setTranscriptionProgress(progress);
+        setTranscriptionProgressInfo({
+          percent: progress,
+          downloadedMb: downloaded_mb ?? 0,
+          totalMb: total_mb ?? 0,
+          speedMbps: speed_mbps ?? 0,
+        });
+        if (status === 'completed') {
+          setTranscriptionDownloaded(true);
+        }
+      }
+    );
+
+    const unlistenParakeetComplete = listen<{ modelName: string }>(
+      'parakeet-model-download-complete',
+      (event) => {
+        if (event.payload.modelName === transcriptionModelRef.current) {
+          setTranscriptionDownloaded(true);
+          setTranscriptionProgress(100);
+        }
+      }
+    );
+
     return () => {
       unlisten.then(fn => fn());
       unlistenComplete.then(fn => fn());
       unlistenError.then(fn => fn());
+      unlistenParakeet.then(fn => fn());
+      unlistenParakeetComplete.then(fn => fn());
     };
   }, []);
 
@@ -406,13 +540,14 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     let summaryModelDownloaded = false;
     let selectedSummaryModel = '';
 
-    // Verify the Whisper transcription model exists on disk
+    // Verify the chosen transcription model exists on disk
     try {
-      const model = await getRecommendedWhisperModel();
-      transcriptionDownloaded = (await getWhisperModelState(model)).available;
-      console.log('[OnboardingContext] Whisper model verified on disk:', model, transcriptionDownloaded);
+      const provider = transcriptionProviderRef.current;
+      const model = transcriptionChosenRef.current ? transcriptionModelRef.current : await getRecommendedWhisperModel();
+      transcriptionDownloaded = (await getTranscriptionModelState(provider, model)).available;
+      console.log('[OnboardingContext] Transcription model verified on disk:', provider, model, transcriptionDownloaded);
     } catch (error) {
-      console.warn('[OnboardingContext] Failed to verify Whisper model:', error);
+      console.warn('[OnboardingContext] Failed to verify transcription model:', error);
       transcriptionDownloaded = false;
     }
 
@@ -499,27 +634,58 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         saveTimeoutRef.current = undefined;
       }
 
-      let modelToSave = selectedSummaryModel;
-      if (!modelToSave) {
-        modelToSave = await invoke<string>('builtin_ai_get_recommended_model');
-        setSelectedSummaryModel(modelToSave);
+      // Built-in AI: make sure the chosen model is downloading, and save it as the summary model
+      let builtinModel: string | null = null;
+      if (summaryChoice === 'builtin') {
+        builtinModel = selectedSummaryModel;
+        if (!builtinModel) {
+          builtinModel = await invoke<string>('builtin_ai_get_recommended_model');
+          setSelectedSummaryModel(builtinModel);
+        }
+
+        const selectedModelReady = await invoke<boolean>('builtin_ai_is_model_ready', {
+          modelName: builtinModel,
+          refresh: true,
+        });
+        setSummaryModelDownloaded(selectedModelReady);
+        if (!selectedModelReady) {
+          requestSummaryModelDownload(builtinModel);
+        }
+      } else if (summaryChoice === 'custom-openai') {
+        await invoke('api_save_custom_openai_config', {
+          endpoint: customOpenAI.endpoint.trim(),
+          apiKey: customOpenAI.apiKey.trim() || null,
+          model: customOpenAI.model.trim(),
+          maxTokens: null,
+          temperature: null,
+          topP: null,
+        });
+        await invoke('api_save_model_config', {
+          provider: 'custom-openai',
+          model: customOpenAI.model.trim(),
+          whisperModel: 'large-v3',
+          apiKey: null,
+          ollamaEndpoint: null,
+        });
       }
 
-      const selectedModelReady = await invoke<boolean>('builtin_ai_is_model_ready', {
-        modelName: modelToSave,
-        refresh: true,
-      });
-      setSummaryModelDownloaded(selectedModelReady);
-      if (!selectedModelReady) {
-        requestSummaryModelDownload(modelToSave);
-      }
-
-      // Onboarding always uses builtin-ai with selected model
       await invoke('complete_onboarding', {
-        model: modelToSave,
+        model: builtinModel,
+        transcriptionProvider: transcriptionProviderRef.current,
+        transcriptionModel: transcriptionModelRef.current,
       });
       setCompleted(true);
-      console.log('[OnboardingContext] Onboarding completed with model:', modelToSave);
+      try {
+        localStorage.removeItem(ONBOARDING_CHOICES_KEY);
+      } catch {
+        // Non-critical
+      }
+      console.log('[OnboardingContext] Onboarding completed:', {
+        summary: summaryChoice,
+        builtinModel,
+        transcription: transcriptionProviderRef.current,
+        transcriptionModel: transcriptionModelRef.current,
+      });
 
       // Reset the flag so subsequent state updates can be saved
       isCompletingRef.current = false;
@@ -555,20 +721,23 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
       setIsBackgroundDownloading(true);
 
-      // Start Whisper download first (speech recognition - always required)
+      // Start the chosen transcription model first
       if (shouldStartTranscription) {
-        const model = await getRecommendedWhisperModel();
-        transcriptionModelRef.current = model;
-        setTranscriptionModel(model);
-        const { available, sizeMb } = await getWhisperModelState(model);
+        const provider = transcriptionProviderRef.current;
+        if (!transcriptionChosenRef.current && provider === 'whisper') {
+          const recommended = await getRecommendedWhisperModel();
+          transcriptionModelRef.current = recommended;
+          setTranscriptionModel(recommended);
+        }
+        const model = transcriptionModelRef.current;
+        const { available, sizeMb } = await getTranscriptionModelState(provider, model);
         if (available) {
           setTranscriptionDownloaded(true);
           setTranscriptionProgress(100);
         } else {
           setTranscriptionProgressInfo({ percent: 0, downloadedMb: 0, totalMb: sizeMb, speedMbps: 0 });
-          console.log('[OnboardingContext] Starting Whisper download:', model);
-          invoke('whisper_download_model', { modelName: model })
-            .catch(err => console.error('[OnboardingContext] Whisper download failed:', err));
+          console.log('[OnboardingContext] Starting transcription model download:', provider, model);
+          startTranscriptionDownload(provider, model);
         }
       }
 
@@ -581,6 +750,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       setIsBackgroundDownloading(false);
       throw error;
     }
+  };
+
+  const startTranscriptionDownload = (provider: TranscriptionProvider, model: string) => {
+    if (provider === 'none') return;
+    const command = provider === 'parakeet' ? 'parakeet_download_model' : 'whisper_download_model';
+    invoke(command, { modelName: model })
+      .catch(err => console.error('[OnboardingContext] Transcription model download failed:', err));
   };
 
   // Check if any models are currently downloading (for re-entry)
@@ -602,10 +778,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   };
 
   const retryTranscriptionDownload = async () => {
-    console.log('[OnboardingContext] Retrying Whisper download');
+    console.log('[OnboardingContext] Retrying transcription model download');
     try {
-      invoke('whisper_download_model', { modelName: transcriptionModelRef.current })
-        .catch(err => console.error('[OnboardingContext] Whisper download failed:', err));
+      if (transcriptionProviderRef.current === 'parakeet') {
+        await invoke('parakeet_retry_download', { modelName: transcriptionModelRef.current });
+      } else {
+        startTranscriptionDownload(transcriptionProviderRef.current, transcriptionModelRef.current);
+      }
     } catch (error) {
       console.error('[OnboardingContext] Retry failed:', error);
       throw error;
@@ -643,7 +822,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     <OnboardingContext.Provider
       value={{
         currentStep,
+        transcriptionProvider,
         transcriptionModel,
+        summaryChoice,
+        customOpenAI,
+        setTranscriptionChoice,
+        setSummaryChoice,
+        setCustomOpenAI,
         transcriptionDownloaded,
         transcriptionProgress,
         transcriptionProgressInfo,

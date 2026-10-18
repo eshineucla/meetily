@@ -53,10 +53,10 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
   const currentSummary = useMemo(() => {
     if (!summary) {
       return {
-        Agenda: { title: "Agenda", blocks: [] },
-        Decisions: { title: "Decisions", blocks: [] },
-        ActionItems: { title: "Action Items", blocks: [] },
-        ClosingRemarks: { title: "Closing Remarks", blocks: [] }
+        Agenda: { title: "议程", blocks: [] },
+        Decisions: { title: "决策", blocks: [] },
+        ActionItems: { title: "待办事项", blocks: [] },
+        ClosingRemarks: { title: "结束语", blocks: [] }
       };
     }
     return ensureUniqueBlockIds(summary);
@@ -541,7 +541,7 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
     const newSummary: Summary = {
       ...currentSummary,
       [newSectionKey]: {
-        title: 'New Section',
+        title: '新章节',
         blocks: [{
           id: newBlockId,
           type: 'text' as const,
@@ -558,12 +558,12 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
   };
 
   const convertToMarkdown = () => {
-    let markdown = `# AI Generated Summary of Meeting: ${meeting?.id || 'Unknown'} - ${meeting?.title || 'Untitled Meeting'}\n\n`;
-    markdown += `## Date: ${meeting?.created_at ? new Date(meeting.created_at).toLocaleDateString() : new Date().toLocaleDateString()}\n\n`;
+    let markdown = `# AI 生成的会议纪要：${meeting?.id || '未知'} - ${meeting?.title || '未命名会议'}\n\n`;
+    markdown += `## 日期：${meeting?.created_at ? new Date(meeting.created_at).toLocaleDateString('zh-CN') : new Date().toLocaleDateString('zh-CN')}\n\n`;
     
     Object.entries(currentSummary).forEach(([key, section]) => {
       if (key === 'title') {
-        markdown = `# ${section.title || 'AI Enhanced Summary'}\n\n`;
+        markdown = `# ${section.title || 'AI 增强纪要'}\n\n`;
       } else {
         markdown += `## ${section.title || key}\n\n`;
         section.blocks.forEach(block => {
@@ -609,10 +609,10 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
     <div className="w-full p-4 bg-red-50 border border-red-200 rounded-lg">
       <div className="flex items-center mb-2">
         <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-2" />
-        <h3 className="text-red-700 font-medium">Error Generating Summary</h3>
+        <h3 className="text-red-700 font-medium">生成纪要出错</h3>
       </div>
       <p className="text-red-600 text-sm">{error}</p>
-      <p className="text-red-500 text-xs mt-2">Please check your model configuration and API keys, or try again.</p>
+      <p className="text-red-500 text-xs mt-2">请检查模型配置和 API 密钥，或稍后重试。</p>
     </div>
   );
 
@@ -622,12 +622,12 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
         <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
         <div>
           <h3 className="text-blue-700 font-medium">
-            {status === 'processing' ? 'Processing Transcript' : 'Generating Summary'}
+            {status === 'processing' ? '正在处理转写稿' : '正在生成纪要'}
           </h3>
           <p className="text-blue-600 text-sm">
             {status === 'processing' 
-              ? 'Analyzing your transcript...' 
-              : 'Creating a detailed summary of your meeting...'}
+              ? '正在分析转写稿…' 
+              : '正在为会议生成详细纪要…'}
           </p>
         </div>
       </div>
@@ -649,8 +649,8 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
   if (!hasContent && status === 'completed') {
     return (
       <div className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
-        <p className="text-gray-600">No summary content available.</p>
-        <p className="text-gray-500 text-sm mt-1">Try generating a new summary.</p>
+        <p className="text-gray-600">暂无纪要内容。</p>
+        <p className="text-gray-500 text-sm mt-1">请尝试重新生成纪要。</p>
       </div>
     );
   }
@@ -685,14 +685,14 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
             onClick={handleCopyBlocks}
           >
             <span className="text-gray-600">📋</span>
-            <span>Copy {selectedBlocks.length > 1 ? `${selectedBlocks.length} blocks` : 'block'}</span>
+            <span>复制{selectedBlocks.length > 1 ? ` ${selectedBlocks.length} 个块` : '块'}</span>
           </button>
           <button
             className="w-full px-4 py-2 text-left hover:bg-gray-100 text-red-600 flex items-center space-x-2"
             onClick={handleDeleteBlocks}
           >
             <span>🗑️</span>
-            <span>Delete {selectedBlocks.length > 1 ? `${selectedBlocks.length} blocks` : 'block'}</span>
+            <span>删除{selectedBlocks.length > 1 ? ` ${selectedBlocks.length} 个块` : '块'}</span>
           </button>
         </div>
       )}

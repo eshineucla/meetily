@@ -382,6 +382,17 @@ impl ModelState {
 
         eprintln!("📝 Tokenized prompt: {} tokens", tokens_list.len());
 
+        // The prompt and the reply have to fit in the context window together
+        let n_ctx = self.context_size as usize;
+        if tokens_list.is_empty() || tokens_list.len() >= n_ctx {
+            anyhow::bail!(
+                "Prompt is too long for the model context ({} tokens, limit {})",
+                tokens_list.len(),
+                n_ctx
+            );
+        }
+        let max_tokens = max_tokens.min((n_ctx - tokens_list.len()) as i32);
+
         // Use context size for batch capacity to handle long prompts
         let batch_size = self.context_size as usize;
         let mut batch = LlamaBatch::new(batch_size, 1);

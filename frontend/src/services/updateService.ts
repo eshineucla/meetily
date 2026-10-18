@@ -50,7 +50,7 @@ export class UpdateService {
 
     // Prevent concurrent update checks
     if (this.updateCheckInProgress) {
-      throw new Error('Update check already in progress');
+      throw new Error('正在检查更新，请稍候');
     }
 
     // Skip if checked recently (unless forced)
@@ -105,7 +105,7 @@ export class UpdateService {
     onProgress?: (progress: UpdateProgress) => void
   ): Promise<void> {
     if (!UPDATES_ENABLED) {
-      throw new Error('Updates are disabled in this build');
+      throw new Error('此版本已禁用更新');
     }
 
     try {

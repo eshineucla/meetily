@@ -4,7 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import { Mic, Sparkles, Check, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
-import { useOnboarding, getWhisperModelState } from '@/contexts/OnboardingContext';
+import { useOnboarding, getTranscriptionModelState } from '@/contexts/OnboardingContext';
+import type { ParakeetDownloadProgressEvent } from '@/lib/parakeet';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSummaryModelSizeLabel, getSummaryModelSizeMb } from '@/lib/onboarding-summary-model';
@@ -23,7 +24,10 @@ interface DownloadState {
 export function DownloadProgressStep() {
   const {
     goNext,
+    transcriptionProvider,
     transcriptionModel,
+    summaryChoice,
+    retryTranscriptionDownload,
     selectedSummaryModel,
     recommendedSummaryModel,
     transcriptionDownloaded,
@@ -60,14 +64,24 @@ export function DownloadProgressStep() {
   const transcriptionModelRef = useRef(transcriptionModel);
   transcriptionModelRef.current = transcriptionModel;
 
-  // Show the Whisper model's catalog size
+  const needsTranscriptionDownload = transcriptionProvider !== 'none';
+  const needsSummaryDownload = summaryChoice === 'builtin';
+
+  // Show the chosen model's catalog size
   useEffect(() => {
-    getWhisperModelState(transcriptionModel)
+    getTranscriptionModelState(transcriptionProvider, transcriptionModel)
       .then(({ sizeMb }) => {
         if (sizeMb > 0) setTranscriptionState((prev) => ({ ...prev, totalMb: sizeMb }));
       })
-      .catch((error) => console.warn('[DownloadProgressStep] Failed to read Whisper model size:', error));
-  }, [transcriptionModel]);
+      .catch((error) => console.warn('[DownloadProgressStep] Failed to read transcription model size:', error));
+  }, [transcriptionProvider, transcriptionModel]);
+
+  // The context marks the model ready when it was already on disk (or none was chosen)
+  useEffect(() => {
+    if (transcriptionDownloaded) {
+      setTranscriptionState((prev) => ({ ...prev, status: 'completed', progress: 100 }));
+    }
+  }, [transcriptionDownloaded]);
 
   // Retry download handler
   const handleRetryDownload = async () => {
@@ -77,7 +91,7 @@ export function DownloadProgressStep() {
       return;
     }
 
-    console.log('[DownloadProgressStep] Retrying Whisper download');
+    console.log('[DownloadProgressStep] Retrying transcription model download');
     retryingRef.current = true;
 
     // Reset error state
@@ -91,20 +105,18 @@ export function DownloadProgressStep() {
     }));
 
     try {
-      // Resolves only when the download ends; progress and error events update state
-      invoke('whisper_download_model', { modelName: transcriptionModel }).catch((error) =>
-        console.error('[DownloadProgressStep] Whisper download failed:', error)
-      );
+      // Progress and error events update state
+      await retryTranscriptionDownload();
     } catch (error) {
       console.error('[DownloadProgressStep] Retry failed:', error);
       setTranscriptionState((prev) => ({
         ...prev,
         status: 'error',
-        error: error instanceof Error ? error.message : 'Retry failed',
+        error: error instanceof Error ? error.message : '重试失败',
       }));
 
-      toast.error('Download retry failed', {
-        description: 'Please check your connection and try again.',
+      toast.error('重新下载失败', {
+        description: '请检查网络连接后重试。',
       });
     } finally {
       // Allow retry again after 2 seconds
@@ -140,7 +152,7 @@ export function DownloadProgressStep() {
       // Call download command directly (no retry command exists for built-in AI)
       const modelName = selectedSummaryModel;
       if (!modelName) {
-        throw new Error('Summary model recommendation is not ready yet');
+        throw new Error('纪要模型推荐尚未就绪');
       }
       await invoke('builtin_ai_download_model', { modelName });
     } catch (error) {
@@ -148,11 +160,11 @@ export function DownloadProgressStep() {
       setSummaryState((prev) => ({
         ...prev,
         status: 'error',
-        error: error instanceof Error ? error.message : 'Retry failed',
+        error: error instanceof Error ? error.message : '重试失败',
       }));
 
-      toast.error('Summary model download retry failed', {
-        description: 'Please check your connection and try again.',
+      toast.error('纪要模型重新下载失败', {
+        description: '请检查网络连接后重试。',
       });
     } finally {
       // Allow retry again after 2 seconds
@@ -189,7 +201,7 @@ export function DownloadProgressStep() {
       includeTranscription: true,
       includeSummary: false,
     }).catch((error) => {
-      console.error('Failed to start Whisper download:', error);
+      console.error('Failed to start transcription model download:', error);
       if (!transcriptionDownloaded) {
         setTranscriptionState((prev) => ({ ...prev, status: 'error', error: String(error) }));
       }
@@ -199,7 +211,7 @@ export function DownloadProgressStep() {
   // Start the selected summary model only after the backend recommendation is known.
   useEffect(() => {
     if (summaryDownloadStartedRef.current) return;
-    if (!selectedSummaryModel) return;
+    if (!needsSummaryDownload || !selectedSummaryModel) return;
     summaryDownloadStartedRef.current = true;
 
     startSummaryDownload();
@@ -252,6 +264,49 @@ export function DownloadProgressStep() {
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
+      unlistenError.then((fn) => fn());
+    };
+  }, []);
+
+  // Listen to Parakeet download progress (only when Parakeet was chosen)
+  useEffect(() => {
+    const unlistenProgress = listen<ParakeetDownloadProgressEvent>(
+      'parakeet-model-download-progress',
+      (event) => {
+        const { modelName, progress, downloaded_mb, total_mb, speed_mbps, status } = event.payload;
+        if (modelName !== transcriptionModelRef.current) return;
+
+        if (status === 'cancelled') {
+          setTranscriptionState((prev) => ({ ...prev, status: 'cancelled', progress: 0, downloadedMb: 0, speedMbps: 0 }));
+          setTranscriptionDownloaded(false);
+          return;
+        }
+
+        setTranscriptionState((prev) => ({
+          ...prev,
+          status: status === 'completed' ? 'completed' : 'downloading',
+          progress,
+          downloadedMb: downloaded_mb ?? prev.downloadedMb,
+          totalMb: total_mb ?? prev.totalMb,
+          speedMbps: speed_mbps ?? prev.speedMbps,
+        }));
+        if (status === 'completed') {
+          setTranscriptionDownloaded(true);
+        }
+      }
+    );
+
+    const unlistenError = listen<{ modelName: string; error: string }>(
+      'parakeet-model-download-error',
+      (event) => {
+        if (event.payload.modelName === transcriptionModelRef.current) {
+          setTranscriptionState((prev) => ({ ...prev, status: 'error', error: event.payload.error }));
+        }
+      }
+    );
+
+    return () => {
+      unlistenProgress.then((fn) => fn());
       unlistenError.then((fn) => fn());
     };
   }, []);
@@ -337,7 +392,7 @@ export function DownloadProgressStep() {
   const handleContinue = async () => {
     // Verify actual model availability (catches state drift)
     try {
-      const actuallyAvailable = (await getWhisperModelState(transcriptionModel)).available;
+      const actuallyAvailable = (await getTranscriptionModelState(transcriptionProvider, transcriptionModel)).available;
 
       if (actuallyAvailable && !transcriptionDownloaded) {
         console.log('[DownloadProgressStep] Model available but state not updated');
@@ -351,8 +406,8 @@ export function DownloadProgressStep() {
         !actuallyAvailable &&
         (transcriptionState.status === 'error' || transcriptionState.status === 'cancelled')
       ) {
-        toast.error('Transcription engine required', {
-          description: 'Please retry the download before continuing.',
+        toast.error('需要先下载转写引擎', {
+          description: '请先重新下载，然后再继续。',
         });
         return;
       }
@@ -362,12 +417,12 @@ export function DownloadProgressStep() {
 
     // Check if downloads are complete for toast notification
     const downloadsComplete = transcriptionState.status === 'completed' &&
-      summaryState.status === 'completed';
+      (!needsSummaryDownload || summaryState.status === 'completed');
 
     // Show toast if downloads still in progress
     if (!downloadsComplete) {
-      toast.info('Downloads will continue in the background', {
-        description: 'You can start using the app. Recording will be available once speech recognition is ready.',
+      toast.info('下载将在后台继续', {
+        description: '你现在就可以开始使用。语音识别就绪后即可录音。',
         duration: 5000,
       });
     }
@@ -387,8 +442,8 @@ export function DownloadProgressStep() {
         window.location.reload();
       } catch (error) {
         console.error('Failed to complete onboarding:', error);
-        toast.error('Failed to complete setup', {
-          description: 'Please try again.',
+        toast.error('完成设置失败', {
+          description: '请重试。',
         });
         setIsCompleting(false);
       }
@@ -415,7 +470,7 @@ export function DownloadProgressStep() {
         </div>
         <div>
           {state.status === 'waiting' && (
-            <span className="text-sm text-gray-500">Waiting...</span>
+            <span className="text-sm text-gray-500">等待中…</span>
           )}
           {state.status === 'downloading' && (
             <Loader2 className="w-5 h-5 text-gray-700 animate-spin" />
@@ -426,10 +481,10 @@ export function DownloadProgressStep() {
             </div>
           )}
           {state.status === 'error' && (
-            <span className="text-sm text-red-500">Failed</span>
+            <span className="text-sm text-red-500">失败</span>
           )}
           {state.status === 'cancelled' && (
-            <span className="text-sm text-gray-500">Cancelled</span>
+            <span className="text-sm text-gray-500">已取消</span>
           )}
         </div>
       </div>
@@ -464,19 +519,19 @@ export function DownloadProgressStep() {
       {(state.status === 'error' || state.status === 'cancelled') && (
         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-600 font-medium">
-            {state.status === 'cancelled' ? 'Download cancelled' : 'Download Error'}
+            {state.status === 'cancelled' ? '下载已取消' : '下载出错'}
           </p>
           {state.error && <p className="text-xs text-red-500 mt-1">{state.error}</p>}
-          {(title === 'Transcription Engine' || title === 'Summary Engine') && (
+          {(title === '转写引擎' || title === '纪要引擎') && (
             <button
-              onClick={title === 'Transcription Engine' ? handleRetryDownload : handleRetrySummaryDownload}
+              onClick={title === '转写引擎' ? handleRetryDownload : handleRetrySummaryDownload}
               className="mt-3 w-full h-9 px-4 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Try Again
+              重试
             </button>
           )}
         </div>
@@ -486,35 +541,38 @@ export function DownloadProgressStep() {
 
   return (
     <OnboardingContainer
-      title="Getting things ready"
-      description="You can start using Meetily after downloading the Transcription Engine."
+      title="正在准备"
+      description="转写引擎下载完成后，即可开始使用会议纪要。"
       step={3}
       totalSteps={isMac ? 4 : 3}
     >
       <div className="flex flex-col items-center space-y-6">
         {/* Download Cards */}
         <div className="w-full max-w-lg space-y-4">
-          {renderDownloadCard(
-            'Transcription Engine',
+          {needsTranscriptionDownload && renderDownloadCard(
+            '转写引擎',
             <Mic className="w-5 h-5 text-gray-600" />,
             transcriptionState,
-            transcriptionState.totalMb > 0
-              ? `Whisper ${transcriptionModel} · ~${transcriptionState.totalMb} MB`
-              : `Whisper ${transcriptionModel}`
+            `${transcriptionProvider === 'parakeet' ? 'Parakeet' : 'Whisper'} ${transcriptionModel}` +
+              (transcriptionState.totalMb > 0 ? ` · ~${transcriptionState.totalMb} MB` : '')
           )}
 
-          {renderDownloadCard(
-            'Summary Engine',
+          {needsSummaryDownload && renderDownloadCard(
+            '纪要引擎',
             <Sparkles className="w-5 h-5 text-gray-600" />,
             summaryState,
             getSummaryModelSizeLabel(selectedSummaryModel || recommendedSummaryModel),
             'MiB'
           )}
+
+          {!needsTranscriptionDownload && !needsSummaryDownload && (
+            <p className="text-sm text-gray-600 text-center">没有需要下载的模型，可以直接继续。</p>
+          )}
         </div>
 
         {/* Info Message - Only show when the transcription model is downloaded */}
         <AnimatePresence>
-          {transcriptionDownloaded && !summaryModelDownloaded && (
+          {transcriptionDownloaded && needsSummaryDownload && !summaryModelDownloaded && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -525,9 +583,9 @@ export function DownloadProgressStep() {
               <div className="flex items-start gap-3">
                 <Download className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium">You can continue while this finishes</p>
+                  <p className="font-medium">可以先继续，下载会自动完成</p>
                   <p className="text-gray-700 mt-1">
-                    Download will continue in the background.
+                    下载将在后台继续。
                   </p>
                 </div>
               </div>
@@ -545,7 +603,7 @@ export function DownloadProgressStep() {
             {(isCompleting || !transcriptionDownloaded) ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              'Continue'
+              '继续'
             )}
           </Button>
         </div>

@@ -1,64 +1,64 @@
- {
-      "name": "Psychiatric Session Note (SOAP + AI Hybrid)",
-      "description": "AI-assisted psychiatric progress note template based on SOAP, with clinical metadata and AI summary.",
-      "sections": [
-        {
-          "title": "Session Metadata",
-          "instruction": "Patient initials/ID, session date, provider, session type, duration (HIPAA-sensitive)",
-          "format": "string"
-        },
-        {
-          "title": "AI Session Summary",
-          "instruction": "One-line takeaway and one-paragraph executive summary (AI-generated). Include confidence score.",
-          "format": "paragraph"
-        },
-        {
-          "title": "Subjective (S)",
-          "instruction": "Patient's self-reported mood, symptoms, sleep, appetite, stressors",
-          "format": "paragraph"
-        },
-        {
-          "title": "Objective (O)",
-          "instruction": "Observable findings: affect, speech, behavior, orientation, vitals if relevant",
-          "format": "paragraph"
-        },
-        {
-          "title": "Assessment (A)",
-          "instruction": "Diagnostic impression, risk assessment (SI/HI), progress vs treatment goals",
-          "format": "paragraph"
-        },
-        {
-          "title": "Plan (P)",
-          "instruction": "Interventions, medication changes, referrals, therapy tasks and follow-up",
-          "format": "list",
-          "item_format": "| **Intervention** | **Owner** | **Frequency** | **Follow-up Date** |\n| --- | --- | --- | --- |"
-        },
-        {
-          "title": "Medications",
-          "instruction": "Current medications, doses, changes, and rationale",
-          "format": "list",
-          "item_format": "| **Medication** | **Dose** | **Route** | **Start/Change Date** |\n| --- | --- | --- | --- |"
-        },
-        {
-          "title": "Diagnoses (DSM/ICD)",
-          "instruction": "List diagnostic codes and working diagnosis",
-          "format": "list",
-          "item_format": "| **Code** | **System** | **Diagnosis** |\n| --- | --- | --- |"
-        },
-        {
-          "title": "Safety & Risk Management",
-          "instruction": "Safety plan, emergency contacts, hospitalization considerations",
-          "format": "paragraph"
-        },
-        {
-          "title": "Next Appointment",
-          "instruction": "Date, time and modality of next session",
-          "format": "string"
-        },
-        {
-          "title": "Audit Trail",
-          "instruction": "Human review flag, reviewer name and timestamp, AI version",
-          "format": "paragraph"
-        }
-      ]
+{
+  "name": "心理诊疗记录（SOAP 格式）",
+  "description": "基于 SOAP 结构的精神科/心理诊疗进展记录，含临床信息和 AI 概要。",
+  "sections": [
+    {
+      "title": "诊疗信息",
+      "instruction": "患者缩写或编号、诊疗日期、医生、诊疗类型、时长（注意隐私保护）",
+      "format": "string"
+    },
+    {
+      "title": "AI 诊疗概要",
+      "instruction": "一句话结论和一段概要（AI 生成），并注明置信度。",
+      "format": "paragraph"
+    },
+    {
+      "title": "主观资料（S）",
+      "instruction": "患者自述的情绪、症状、睡眠、食欲、压力来源",
+      "format": "paragraph"
+    },
+    {
+      "title": "客观资料（O）",
+      "instruction": "可观察到的表现：情感、言语、行为、定向力，必要时含生命体征",
+      "format": "paragraph"
+    },
+    {
+      "title": "评估（A）",
+      "instruction": "诊断印象、风险评估（自伤/伤人）、与治疗目标相比的进展",
+      "format": "paragraph"
+    },
+    {
+      "title": "计划（P）",
+      "instruction": "干预措施、用药调整、转诊、治疗任务和随访",
+      "format": "list",
+      "item_format": "| **干预措施** | **负责人** | **频次** | **随访日期** |\n| --- | --- | --- | --- |"
+    },
+    {
+      "title": "用药",
+      "instruction": "当前用药、剂量、调整情况及理由",
+      "format": "list",
+      "item_format": "| **药物** | **剂量** | **给药途径** | **开始/调整日期** |\n| --- | --- | --- | --- |"
+    },
+    {
+      "title": "诊断（DSM/ICD）",
+      "instruction": "列出诊断编码和初步诊断",
+      "format": "list",
+      "item_format": "| **编码** | **体系** | **诊断** |\n| --- | --- | --- |"
+    },
+    {
+      "title": "安全与风险管理",
+      "instruction": "安全计划、紧急联系人、是否需要住院",
+      "format": "paragraph"
+    },
+    {
+      "title": "下次预约",
+      "instruction": "下次诊疗的日期、时间和方式",
+      "format": "string"
+    },
+    {
+      "title": "审核记录",
+      "instruction": "人工审核标记、审核人和时间、AI 版本",
+      "format": "paragraph"
     }
+  ]
+}

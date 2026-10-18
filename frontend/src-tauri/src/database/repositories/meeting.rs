@@ -7,6 +7,35 @@ use tracing::{error, info};
 pub struct MeetingsRepository;
 
 impl MeetingsRepository {
+    /// When the meeting's minutes were marked final, if they were
+    pub async fn get_finalized_at(pool: &SqlitePool, meeting_id: &str) -> Result<Option<String>, sqlx::Error> {
+        let finalized: Option<Option<String>> =
+            sqlx::query_scalar("SELECT finalized_at FROM meetings WHERE id = ?")
+                .bind(meeting_id)
+                .fetch_optional(pool)
+                .await?;
+        Ok(finalized.flatten())
+    }
+
+    /// Ids of all meetings whose minutes are final
+    pub async fn get_finalized_ids(pool: &SqlitePool) -> Result<std::collections::HashSet<String>, sqlx::Error> {
+        let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM meetings WHERE finalized_at IS NOT NULL")
+            .fetch_all(pool)
+            .await?;
+        Ok(ids.into_iter().collect())
+    }
+
+    /// Mark the meeting's minutes final (read-only) or back to draft
+    pub async fn set_finalized(pool: &SqlitePool, meeting_id: &str, finalized: bool) -> Result<bool, sqlx::Error> {
+        let finalized_at = finalized.then(|| chrono::Utc::now().to_rfc3339());
+        let result = sqlx::query("UPDATE meetings SET finalized_at = ? WHERE id = ?")
+            .bind(finalized_at)
+            .bind(meeting_id)
+            .execute(pool)
+            .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
     pub async fn get_meetings(pool: &SqlitePool) -> Result<Vec<MeetingModel>, sqlx::Error> {
         let meetings =
             sqlx::query_as::<_, MeetingModel>("SELECT * FROM meetings ORDER BY created_at DESC")
@@ -254,6 +283,11 @@ async fn delete_meeting_with_transaction(
 
     // 2. Delete from summary_processes
     sqlx::query("DELETE FROM summary_processes WHERE meeting_id = ?")
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    sqlx::query("DELETE FROM summary_versions WHERE meeting_id = ?")
         .bind(meeting_id)
         .execute(&mut *transaction)
         .await?;

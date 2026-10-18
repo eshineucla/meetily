@@ -21,6 +21,9 @@ use tauri::{AppHandle, Manager};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
+/// Tokens kept free for the instructions and template around a built-in model's transcript
+const BUILTIN_PROMPT_OVERHEAD_TOKENS: u32 = 2000;
+
 static METADATA_CACHE: LazyLock<ModelMetadataCache> =
     LazyLock::new(|| ModelMetadataCache::new(Duration::from_secs(300)));
 
@@ -457,8 +460,13 @@ impl SummaryService {
 
             match model {
                 Ok(model_def) => {
-                    // Reserve 300 tokens for prompt overhead
-                    let optimal = model_def.context_size.saturating_sub(300) as usize;
+                    // The whole prompt and the reply share the context window:
+                    // reserve room for the reply and for the instructions and template
+                    let optimal = model_def
+                        .context_size
+                        .saturating_sub(models::DEFAULT_MAX_TOKENS as u32)
+                        .saturating_sub(BUILTIN_PROMPT_OVERHEAD_TOKENS)
+                        as usize;
                     info!(
                         "✓ Using BuiltInAI context size: {} tokens (chunk size: {})",
                         model_def.context_size, optimal

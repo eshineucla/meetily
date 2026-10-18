@@ -32,28 +32,28 @@ const COMMANDS: CommandOption[] = [
     label: 'Text', 
     type: 'text', 
     icon: 'T', 
-    description: 'Just start writing with plain text' 
+    description: '直接输入纯文本' 
   },
   { 
     id: 'bullet', 
     label: 'Bullet List', 
     type: 'bullet', 
     icon: '•', 
-    description: 'Create a bulleted list' 
+    description: '创建项目符号列表' 
   },
   { 
     id: 'h1', 
     label: 'Heading 1', 
     type: 'heading1', 
     icon: 'H1', 
-    description: 'Big section heading' 
+    description: '大号章节标题' 
   },
   { 
     id: 'h2', 
     label: 'Heading 2', 
     type: 'heading2', 
     icon: 'H2', 
-    description: 'Medium section heading' 
+    description: '中号章节标题' 
   },
 ];
 
@@ -250,7 +250,7 @@ export const BlockComponent: React.FC<BlockProps> = ({
             ${block.type === 'heading1' ? 'text-xl font-bold' : ''}
             ${block.type === 'heading2' ? 'text-lg font-semibold' : ''}
           `}
-          placeholder="Type '/' for commands..."
+          placeholder="输入“/”调出命令…"
         />
 
         {showCommands && (

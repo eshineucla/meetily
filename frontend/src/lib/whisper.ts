@@ -54,37 +54,37 @@ export interface TranscribeAudioRequest {
 export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
   // Standard f16 models (full precision)
   'large-v3': {
-    description: 'Highest accuracy, best for important meetings. Slower processing.',
+    description: '准确度最高，适合重要会议，处理较慢。',
     size_mb: 2951,
     accuracy: 'High',
     speed: 'Slow'
   },
   'large-v3-turbo': {
-    description: 'Best accuracy with improved speed.',
+    description: '准确度极佳，速度有所提升。',
     size_mb: 1549,
     accuracy: 'High',
     speed: 'Medium'
   },
   'medium': {
-    description: 'Balanced accuracy and speed. Good for most use cases.',
+    description: '准确度与速度均衡，适合大多数场景。',
     size_mb: 1463,
     accuracy: 'High',
     speed: 'Slow'
   },
   'small': {
-    description: 'Fast processing with good quality. Great for quick transcription.',
+    description: '处理快、质量好，适合快速转写。',
     size_mb: 466,
     accuracy: 'Good',
     speed: 'Medium'
   },
   'base': {
-    description: 'Good balance of speed and accuracy.',
+    description: '速度与准确度兼顾。',
     size_mb: 142,
     accuracy: 'Good',
     speed: 'Fast'
   },
   'tiny': {
-    description: 'Fastest processing, good for real-time use.',
+    description: '处理最快，适合实时使用。',
     size_mb: 39,
     accuracy: 'Decent',
     speed: 'Very Fast'
@@ -92,19 +92,19 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
 
   // Q5_1 quantized models (balanced speed/accuracy, slightly better quality than Q5_0)
   'tiny-q5_1': {
-    description: 'Quantized tiny model, ~50% faster processing.',
+    description: '量化版 tiny 模型，处理速度提升约 50%。',
     size_mb: 31,
     accuracy: 'Decent',
     speed: 'Very Fast'
   },
   'base-q5_1': {
-    description: 'Quantized base model, good speed/accuracy balance.',
+    description: '量化版 base 模型，速度与准确度均衡。',
     size_mb: 57,
     accuracy: 'Good',
     speed: 'Fast'
   },
   'small-q5_1': {
-    description: 'Quantized small model, faster than f16 version.',
+    description: '量化版 small 模型，比 f16 版本更快。',
     size_mb: 181,
     accuracy: 'Good',
     speed: 'Fast'
@@ -112,19 +112,19 @@ export const MODEL_CONFIGS: Record<string, Partial<ModelInfo>> = {
 
   // Q5_0 quantized models (balanced speed/accuracy)
   'medium-q5_0': {
-    description: 'Quantized medium model, professional quality with better speed.',
+    description: '量化版 medium 模型，专业品质且速度更快。',
     size_mb: 514,
     accuracy: 'High',
     speed: 'Medium'
   },
   'large-v3-turbo-q5_0': {
-    description: 'Quantized large turbo model, best balance.',
+    description: '量化版 large turbo 模型，综合表现最佳。',
     size_mb: 547,
     accuracy: 'High',
     speed: 'Medium'
   },
   'large-v3-q5_0': {
-    description: 'Quantized large model, best balance of speed and accuracy.',
+    description: '量化版 large 模型，速度与准确度最佳平衡。',
     size_mb: 1031,
     accuracy: 'High',
     speed: 'Slow'
@@ -138,6 +138,25 @@ export function getModelIcon(accuracy: ModelAccuracy): string {
     case 'Good': return '⚡';
     case 'Decent': return '🚀';
     default: return '📊';
+  }
+}
+
+export function getAccuracyLabel(accuracy: ModelAccuracy): string {
+  switch (accuracy) {
+    case 'High': return '高';
+    case 'Good': return '良好';
+    case 'Decent': return '一般';
+    default: return accuracy;
+  }
+}
+
+export function getSpeedLabel(speed: ProcessingSpeed): string {
+  switch (speed) {
+    case 'Very Fast': return '极快';
+    case 'Fast': return '快';
+    case 'Medium': return '中等';
+    case 'Slow': return '较慢';
+    default: return speed;
   }
 }
 
@@ -179,15 +198,15 @@ export function getModelPerformanceBadge(modelName: string): { label: string; co
   const type = getModelType(modelName);
   switch (type) {
     case 'f16':
-      return { label: 'Full Precision', color: 'blue' };
+      return { label: '全精度', color: 'blue' };
     case 'q5_1':
-      return { label: 'Balanced+', color: 'green' };
+      return { label: '均衡+', color: 'green' };
     case 'q5_0':
-      return { label: 'Balanced', color: 'green' };
+      return { label: '均衡', color: 'green' };
     case 'q4_0':
-      return { label: 'Fast', color: 'orange' };
+      return { label: '快速', color: 'orange' };
     default:
-      return { label: 'Standard', color: 'gray' };
+      return { label: '标准', color: 'gray' };
   }
 }
 
@@ -200,42 +219,42 @@ export function getModelTagline(modelName: string, speed: ProcessingSpeed, accur
   let speedText = '';
   switch (speed) {
     case 'Very Fast':
-      speedText = 'Real time';
+      speedText = '实时';
       break;
     case 'Fast':
-      speedText = 'Fast processing';
+      speedText = '处理快';
       break;
     case 'Medium':
-      speedText = 'Moderate speed';
+      speedText = '速度适中';
       break;
     case 'Slow':
-      speedText = 'Slower processing';
+      speedText = '处理较慢';
       break;
   }
 
   // Key feature based on model and accuracy
   let featureText = '';
   if (baseName === 'large-v3') {
-    featureText = 'Most accurate';
+    featureText = '最准确';
   } else if (baseName === 'large-v3-turbo') {
-    featureText = 'Best accuracy with speed';
+    featureText = '准确且快速';
   } else if (baseName === 'medium') {
-    featureText = accuracy === 'High' ? 'Professional quality' : 'Balanced quality';
+    featureText = accuracy === 'High' ? '专业品质' : '品质均衡';
   } else if (baseName === 'small') {
-    featureText = 'Good accuracy';
+    featureText = '准确度好';
   } else if (baseName === 'base') {
-    featureText = 'Balanced quality';
+    featureText = '品质均衡';
   } else if (baseName === 'tiny') {
-    featureText = 'Fastest option';
+    featureText = '速度最快';
   }
 
   // Add quantization note if applicable
   if (isQuantized) {
     const quantType = getModelType(modelName);
     if (quantType === 'q5_0') {
-      featureText += ', optimized';
+      featureText += '，已优化';
     } else if (quantType === 'q4_0') {
-      featureText += ', ultra fast';
+      featureText += '，极速';
     }
   }
 

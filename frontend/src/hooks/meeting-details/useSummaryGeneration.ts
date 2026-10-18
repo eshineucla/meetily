@@ -28,8 +28,8 @@ async function resolveSummaryLanguage(
     if (perMeeting.language) return perMeeting.language;
   } catch (err) {
     console.warn('Failed to load meeting summary language:', err);
-    toast.warning('Could not load saved summary language', {
-      description: 'Using Auto for this generation.',
+    toast.warning('无法读取已保存的纪要语言', {
+      description: '本次生成将使用“自动”。',
     });
   }
 
@@ -43,13 +43,24 @@ async function resolveSummaryLanguage(
   try {
     const detection = await detectAndCacheSummaryLanguage(meetingId, transcriptTexts);
     if (detection.reason === 'tie') {
-      toast.warning('Bilingual transcript detected', {
-        description: 'Pick a summary language manually if Auto chooses the wrong fallback.',
+      toast.warning('检测到双语转写稿', {
+        description: '如果“自动”选错了语言，请手动选择纪要语言。',
       });
     }
-    return detection.language;
+    return detection.language ?? transcriptionLanguageFallback();
   } catch (err) {
     console.warn('Failed to detect transcript summary language:', err);
+    return transcriptionLanguageFallback();
+  }
+}
+
+// When detection is inconclusive, a Chinese transcription language still means a
+// Chinese summary rather than the English default.
+function transcriptionLanguageFallback(): string | null {
+  try {
+    const language = localStorage.getItem('primaryLanguage') ?? 'zh';
+    return language === 'zh' ? 'zh' : null;
+  } catch {
     return null;
   }
 }
@@ -97,7 +108,7 @@ export function useSummaryGeneration({
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>(() => restoredSummaryStatus(restored));
   const [summaryError, setSummaryError] = useState<string | null>(() =>
     restoredSummaryStatus(restored) === 'error'
-      ? restored?.error || 'Summary generation failed. Please retry.'
+      ? restored?.error || '纪要生成失败，请重试。'
       : null,
   );
   const mountedRef = useRef(true);
@@ -117,15 +128,15 @@ export function useSummaryGeneration({
   const getSummaryStatusMessage = useCallback((status: SummaryStatus) => {
     switch (status) {
       case 'processing':
-        return 'Processing transcript...';
+        return '正在处理转写稿...';
       case 'summarizing':
-        return 'Generating summary...';
+        return '正在生成纪要...';
       case 'regenerating':
-        return 'Regenerating summary...';
+        return '正在重新生成纪要...';
       case 'completed':
-        return 'Summary completed';
+        return '纪要已完成';
       case 'error':
-        return 'Error generating summary';
+        return '生成纪要出错';
       default:
         return '';
     }
@@ -161,7 +172,7 @@ export function useSummaryGeneration({
     activeProcessIdRef.current = null;
     setSummaryError(message);
     setSummaryStatus('error');
-    toast.error(`Failed to ${isRegeneration ? 'regenerate' : 'generate'} summary`, {
+    toast.error(`${isRegeneration ? '重新生成' : '生成'}纪要失败`, {
       description: message,
     });
     await finishGeneration(generationId, outcome);
@@ -184,7 +195,7 @@ export function useSummaryGeneration({
       } catch (error) {
         console.error('Failed to reload summary after cancellation:', error);
         await failGeneration(generationId, isRegeneration,
-          'Summary generation was cancelled, but the saved summary could not be reloaded. Please reopen this meeting.');
+          '纪要生成已取消，但无法重新加载已保存的纪要。请重新打开该会议。');
         return;
       }
       if (!mountedRef.current || visibleMeetingIdRef.current !== meeting.id || generationId !== generationIdRef.current) {
@@ -201,7 +212,7 @@ export function useSummaryGeneration({
 
     if (pollingResult.status === 'error' || pollingResult.status === 'failed') {
       const errorMessage = pollingResult.error
-        || `Summary ${isRegeneration ? 'regeneration' : 'generation'} failed`;
+        || `纪要${isRegeneration ? '重新生成' : '生成'}失败`;
       if (isRegeneration) {
         let existing: SummaryProcessResponse;
         try {
@@ -211,7 +222,7 @@ export function useSummaryGeneration({
         } catch (error) {
           console.error('Failed to reload previous summary after generation failure:', error);
           await failGeneration(generationId, isRegeneration,
-            `${errorMessage}. The saved summary could not be reloaded. Please reopen this meeting.`);
+            `${errorMessage}。无法重新加载已保存的纪要，请重新打开该会议。`);
           return;
         }
         if (!mountedRef.current || visibleMeetingIdRef.current !== meeting.id || generationId !== generationIdRef.current) {
@@ -222,8 +233,8 @@ export function useSummaryGeneration({
           setAiSummary(restoredSummary);
           setSummaryStatus('completed');
           setSummaryError(null);
-          toast.error('Failed to regenerate summary', {
-            description: `${errorMessage}. Your previous summary has been restored.`,
+          toast.error('重新生成纪要失败', {
+            description: `${errorMessage}。已恢复之前的纪要。`,
           });
           activeProcessIdRef.current = null;
           await finishGeneration(generationId, 'generation_error');
@@ -238,7 +249,7 @@ export function useSummaryGeneration({
       const summary = parseSummaryContent(pollingResult.data);
       if (!summary) {
         await failGeneration(generationId, isRegeneration,
-          'Summary generation completed without visible content. Please retry.',
+          '纪要生成已完成，但没有可显示的内容，请重试。',
           'empty_result',
         );
         return;
@@ -253,14 +264,14 @@ export function useSummaryGeneration({
       activeProcessIdRef.current = null;
       setSummaryError(null);
       if (metadata.normalizationFallback) {
-        toast.warning('Summary generated with fallback', {
-          description: 'English normalization failed, so the original sanitized summary was kept.',
+        toast.warning('纪要已按备用方式生成', {
+          description: '英文规范化处理失败，已保留清理后的原始纪要。',
         });
       } else {
-        toast.success('Summary generated successfully!', {
+        toast.success('纪要生成成功！', {
           description: metadata.reasoningStripped
-            ? 'Your meeting summary is ready. Model reasoning was filtered out of the notes.'
-            : 'Your meeting summary is ready',
+            ? '会议纪要已生成，模型的推理过程已从纪要中过滤。'
+            : '会议纪要已生成',
           duration: 4000,
         });
       }
@@ -293,7 +304,7 @@ export function useSummaryGeneration({
     const status = restoredSummaryStatus(initialSummary);
     setSummaryStatus(status);
     setSummaryError(status === 'error'
-      ? initialSummary.error || 'Summary generation failed. Please retry.'
+      ? initialSummary.error || '纪要生成失败，请重试。'
       : null);
     if (status !== 'processing' || !initialSummary.start) return;
 
@@ -327,7 +338,7 @@ export function useSummaryGeneration({
 
     try {
       if (!transcriptText.trim()) {
-        await failGeneration(generationId, isRegeneration, 'No transcript text available. Please add some text first.', 'empty_result');
+        await failGeneration(generationId, isRegeneration, '没有可用的转写文本，请先添加内容。', 'empty_result');
         return;
       }
 
@@ -348,8 +359,8 @@ export function useSummaryGeneration({
       if (customPrompt.trim()) {
         await Analytics.trackCustomPromptUsed(customPrompt.trim().length);
       }
-      toast.info(`${isRegeneration ? 'Regenerating' : 'Generating'} summary...`, {
-        description: `Using ${modelConfig.provider}/${modelConfig.model}`,
+      toast.info(`正在${isRegeneration ? '重新生成' : '生成'}纪要…`, {
+        description: `使用 ${modelConfig.provider}/${modelConfig.model}`,
         duration: 3000,
       });
 
@@ -383,7 +394,7 @@ export function useSummaryGeneration({
       startSummaryPolling(meeting.id, processId, result =>
         pollingResultRef.current(result, generationId, isRegeneration));
     } catch (error) {
-      await failGeneration(generationId, isRegeneration, error instanceof Error ? error.message : 'Summary generation failed.');
+      await failGeneration(generationId, isRegeneration, error instanceof Error ? error.message : '纪要生成失败。');
     }
   }, [
     failGeneration,
@@ -428,7 +439,7 @@ export function useSummaryGeneration({
       return allData.transcripts;
     } catch (error) {
       console.error('❌ Error fetching all transcripts:', error);
-      toast.error('Failed to fetch transcripts for summary generation');
+      toast.error('获取转写稿失败，无法生成纪要');
       return [];
     }
   }, []);
@@ -458,12 +469,12 @@ export function useSummaryGeneration({
 
   const handleGenerateSummary = useCallback(async (customPrompt: string = '') => {
     if (isModelConfigLoading) {
-      toast.info('Loading model configuration, please wait...');
+      toast.info('正在加载模型配置，请稍候…');
       return;
     }
     const allTranscripts = await fetchAllTranscripts(meeting.id);
     if (!allTranscripts.length) {
-      showPreflightError('No transcripts available for summary');
+      showPreflightError('没有可用于生成纪要的转写稿');
       return;
     }
 
@@ -473,13 +484,13 @@ export function useSummaryGeneration({
           endpoint: modelConfig.ollamaEndpoint || null,
         });
         if (models.length === 0) {
-          showPreflightError('No Ollama models found. Please download gemma3:1b from Model Settings.');
+          showPreflightError('未找到 Ollama 模型，请在模型设置中下载 gemma3:1b。');
           return;
         }
       }
       if (modelConfig.provider === 'builtin-ai') {
         if (!modelConfig.model) {
-          showPreflightError('No built-in AI model selected. Please select a model in settings.');
+          showPreflightError('未选择内置 AI 模型，请在设置中选择模型。');
           onOpenModelSettings?.();
           return;
         }
@@ -488,14 +499,14 @@ export function useSummaryGeneration({
           refresh: true,
         });
         if (!isReady) {
-          showPreflightError('Built-in AI model is not ready. Please check model settings.');
+          showPreflightError('内置 AI 模型未就绪，请检查模型设置。');
           onOpenModelSettings?.();
           return;
         }
       }
     } catch (error) {
       console.error('Failed to validate summary model:', error);
-      showPreflightError('Failed to validate summary model. Please check model settings.');
+      showPreflightError('校验纪要模型失败，请检查模型设置。');
       return;
     }
 
@@ -520,7 +531,7 @@ export function useSummaryGeneration({
 
     if (!allTranscripts.length) {
       console.error('No transcripts available for regeneration');
-      toast.error('No transcripts available for summary regeneration');
+      toast.error('没有可用于重新生成纪要的转写稿');
       return;
     }
 
@@ -540,8 +551,8 @@ export function useSummaryGeneration({
       setSummaryStatus('idle');
       setSummaryError(null);
       await finishGeneration(generationId, 'cancelled');
-      toast.info('Summary generation stopped', {
-        description: 'You can generate a new summary anytime',
+      toast.info('已停止生成纪要', {
+        description: '你可以随时重新生成纪要',
         duration: 3000,
       });
       return;
@@ -562,13 +573,13 @@ export function useSummaryGeneration({
         setSummaryStatus('idle');
         setSummaryError(null);
         await finishGeneration(generationId, 'cancelled');
-        toast.info('Summary generation stopped', {
-          description: 'You can generate a new summary anytime',
+        toast.info('已停止生成纪要', {
+          description: '你可以随时重新生成纪要',
           duration: 3000,
         });
       } else if (activeProcessIdRef.current === processId) {
-        toast.info('Summary is already finishing', {
-          description: 'Waiting for the latest result.',
+        toast.info('纪要即将生成完成', {
+          description: '正在等待最新结果。',
         });
       }
     } catch (error) {
@@ -577,8 +588,8 @@ export function useSummaryGeneration({
         generationId === generationIdRef.current
         && activeProcessIdRef.current === processId
       ) {
-        toast.error('Failed to stop summary generation', {
-          description: 'Generation is still running; waiting for its latest status.',
+        toast.error('停止生成纪要失败', {
+          description: '生成仍在进行，正在等待最新状态。',
         });
       }
     }

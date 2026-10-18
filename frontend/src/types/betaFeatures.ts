@@ -16,6 +16,8 @@
  * 3. Remove conditional checks - feature is now always-on
  */
 
+import { BETA_FEATURES_ENABLED } from '@/config/features';
+
 export interface BetaFeatures {
   /**
    * Import audio files and retranscribe existing meetings with different language settings
@@ -33,14 +35,14 @@ export const DEFAULT_BETA_FEATURES: BetaFeatures = {
  * Human-readable feature names for UI display
  */
 export const BETA_FEATURE_NAMES: Record<keyof BetaFeatures, string> = {
-  importAndRetranscribe: 'Import Audio & Retranscribe',
+  importAndRetranscribe: '导入音频与重新转写',
 };
 
 /**
  * Feature descriptions for UI tooltips/help text
  */
 export const BETA_FEATURE_DESCRIPTIONS: Record<keyof BetaFeatures, string> = {
-  importAndRetranscribe: 'Import audio files to transcribe or retranscribe existing meetings with different language settings.',
+  importAndRetranscribe: '导入音频文件进行转写，或使用不同的语言设置重新转写已有会议。',
 };
 
 /**
@@ -55,6 +57,9 @@ export type BetaFeatureKey = keyof BetaFeatures;
  * @returns BetaFeatures object with values from localStorage or defaults
  */
 export function loadBetaFeatures(): BetaFeatures {
+  if (!BETA_FEATURES_ENABLED) {
+    return { importAndRetranscribe: false };
+  }
   if (typeof window === 'undefined') {
     return { ...DEFAULT_BETA_FEATURES };
   }
