@@ -14,6 +14,7 @@ import { ModelConfig } from '@/components/ModelSettingsModal';
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGeneration';
+import { useMeetingContext } from '@/hooks/meeting-details/useMeetingContext';
 import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
@@ -58,7 +59,7 @@ export default function PageContent({
   });
 
   // State
-  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const { text: customPrompt, setText: setCustomPrompt, saveState: contextSaveState } = useMeetingContext(meeting.id);
   const isRecording = false;
   const [activeTab, setActiveTab] = useState<MeetingDetailsTab>('transcript');
 
@@ -240,6 +241,7 @@ export default function PageContent({
               transcripts={meetingData.transcripts}
               customPrompt={customPrompt}
               onPromptChange={setCustomPrompt}
+              promptSaveState={contextSaveState}
               onCopyTranscript={copyOperations.handleCopyTranscript}
               onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
               isRecording={isRecording}
@@ -267,6 +269,7 @@ export default function PageContent({
               onCopySummary={copyOperations.handleCopySummary}
               aiSummary={meetingData.aiSummary}
               summaryStatus={summaryGeneration.summaryStatus}
+              summaryProgress={summaryGeneration.summaryProgress}
               transcripts={meetingData.transcripts}
               modelConfig={modelConfig}
               setModelConfig={setModelConfig}

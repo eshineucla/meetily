@@ -117,6 +117,8 @@ export interface SummaryProcessResponse {
   end: string | null;
   data: unknown | null;
   error: string | null;
+  /** While processing: what the generation is doing now, e.g. 正在提炼第 3/12 段 */
+  progress?: string | null;
 }
 
 // Pagination types for optimized transcript loading

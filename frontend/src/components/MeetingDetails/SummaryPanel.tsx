@@ -40,6 +40,7 @@ interface SummaryPanelProps {
   onCopySummary: () => Promise<void>;
   aiSummary: MeetingSummary | null;
   summaryStatus: 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
+  summaryProgress?: string | null;
   transcripts: Transcript[];
   modelConfig: ModelConfig;
   setModelConfig: (config: ModelConfig | ((prev: ModelConfig) => ModelConfig)) => void;
@@ -75,6 +76,7 @@ export function SummaryPanel({
   onCopySummary,
   aiSummary,
   summaryStatus,
+  summaryProgress,
   transcripts,
   modelConfig,
   setModelConfig,
@@ -424,6 +426,10 @@ export function SummaryPanel({
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
             <p className="text-gray-600">正在生成 AI 纪要…</p>
+            {summaryProgress && <p className="text-sm text-gray-500 mt-1">{summaryProgress}</p>}
+            <p className="text-xs text-gray-400 mt-3 max-w-xs">
+              长稿件用本地模型可能要较长时间，可以先离开这个页面，生成会在后台继续。
+            </p>
           </div>
         </div>
       ) : !hasSummary ? (

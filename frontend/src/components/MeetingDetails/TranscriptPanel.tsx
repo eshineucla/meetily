@@ -5,11 +5,20 @@ import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { useMemo } from 'react';
+import type { ContextSaveState } from '@/hooks/meeting-details/useMeetingContext';
+
+const SAVE_STATE_TEXT: Record<ContextSaveState, string> = {
+  idle: '自动保存，下次生成纪要时使用，不需要提交',
+  saving: '正在保存…',
+  saved: '已保存，下次生成纪要时使用',
+  error: '保存失败，本次生成仍会使用，但离开页面后不会保留',
+};
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
   customPrompt: string;
   onPromptChange: (value: string) => void;
+  promptSaveState?: ContextSaveState;
   onCopyTranscript: () => void;
   onOpenMeetingFolder: () => Promise<void>;
   isRecording: boolean;
@@ -34,6 +43,7 @@ export function TranscriptPanel({
   transcripts,
   customPrompt,
   onPromptChange,
+  promptSaveState = 'idle',
   onCopyTranscript,
   onOpenMeetingFolder,
   isRecording,
@@ -101,11 +111,16 @@ export function TranscriptPanel({
       {!isRecording && convertedSegments.length > 0 && (
         <div className="p-1 border-t border-gray-200">
           <textarea
-            placeholder="为 AI 纪要补充背景信息，例如参会人员、会议概况、会议目标等…"
+            placeholder="为 AI 纪要补充背景信息，例如参会人员、会议概况、会议目标等。输入后自动保存，下次点「生成纪要」时使用。"
             className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm min-h-[80px] resize-y"
             value={customPrompt}
             onChange={(e) => onPromptChange(e.target.value)}
           />
+          {customPrompt.trim() && (
+            <p className={`px-1 text-xs ${promptSaveState === 'error' ? 'text-red-600' : 'text-gray-400'}`}>
+              {SAVE_STATE_TEXT[promptSaveState]}
+            </p>
+          )}
         </div>
       )}
     </div>

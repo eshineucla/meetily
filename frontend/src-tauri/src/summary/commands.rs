@@ -46,6 +46,9 @@ pub struct SummaryResponse {
     pub end: Option<String>,
     pub data: Option<serde_json::Value>,
     pub error: Option<String>,
+    /// While processing: what the generation is doing now
+    #[serde(default)]
+    pub progress: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -386,6 +389,23 @@ pub async fn api_get_summary<R: Runtime>(
             } else {
                 None
             };
+            // A generation that is not running in this app session will never finish: the app
+            // was closed or crashed while it ran. Without this the page would wait forever.
+            // The grace period covers the moment between the database row and the task starting.
+            let mut progress = None;
+            if status == "processing" || status == "pending" {
+                match SummaryService::active_stage(&meeting_id) {
+                    Some(stage) => progress = Some(stage),
+                    None if process
+                        .start_time
+                        .is_some_and(|started| Utc::now() - started > Duration::seconds(60)) =>
+                    {
+                        status = "error".to_string();
+                        error = Some("纪要生成已中断（生成过程中程序被关闭或出错），请重新生成。".to_string());
+                    }
+                    None => {}
+                }
+            }
             if status == "completed" && !data.as_ref().is_some_and(summary_is_renderable) {
                 status = "error".to_string();
                 error = Some(
@@ -421,6 +441,7 @@ pub async fn api_get_summary<R: Runtime>(
                 end: process.end_time.map(|time| time.to_rfc3339()),
                 data,
                 error,
+                progress,
             };
 
             log_info!(
@@ -449,6 +470,7 @@ pub async fn api_get_summary<R: Runtime>(
                 end: None,
                 data: None,
                 error: None,
+                progress: None,
             })
         }
         Err(e) => {
@@ -765,4 +787,41 @@ pub async fn api_set_meeting_finalized(
         Ok(false) => Err("Meeting not found".to_string()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// The background information the user typed for a meeting's minutes (participants, purpose…),
+/// kept in `meeting_notes` so it survives leaving the page
+#[tauri::command]
+pub async fn meeting_context_get(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<String, String> {
+    let text: Option<Option<String>> =
+        sqlx::query_scalar("SELECT notes_markdown FROM meeting_notes WHERE meeting_id = ?")
+            .bind(&meeting_id)
+            .fetch_optional(state.db_manager.pool())
+            .await
+            .map_err(|e| format!("读取背景信息失败：{}", e))?;
+    Ok(text.flatten().unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn meeting_context_save(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    text: String,
+) -> Result<(), String> {
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO meeting_notes (meeting_id, notes_markdown, created_at, updated_at) VALUES (?, ?, ?, ?) \
+         ON CONFLICT(meeting_id) DO UPDATE SET notes_markdown = excluded.notes_markdown, updated_at = excluded.updated_at",
+    )
+    .bind(&meeting_id)
+    .bind(&text)
+    .bind(&now)
+    .bind(&now)
+    .execute(state.db_manager.pool())
+    .await
+    .map_err(|e| format!("保存背景信息失败：{}", e))?;
+    Ok(())
 }
