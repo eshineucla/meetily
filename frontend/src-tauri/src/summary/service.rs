@@ -24,6 +24,11 @@ use tracing::{error, info, warn};
 /// Tokens kept free for the instructions and template around a built-in model's transcript
 const BUILTIN_PROMPT_OVERHEAD_TOKENS: u32 = 2000;
 
+/// Largest transcript piece sent to a built-in model in one request. The built-in model runs on
+/// the CPU, where reading a prompt that fills its 32K window takes longer than the request
+/// timeout; smaller pieces each finish in a few minutes and show progress as they go.
+const BUILTIN_MAX_CHUNK_TOKENS: u32 = 8000;
+
 static METADATA_CACHE: LazyLock<ModelMetadataCache> =
     LazyLock::new(|| ModelMetadataCache::new(Duration::from_secs(300)));
 
@@ -488,6 +493,7 @@ impl SummaryService {
                         .context_size
                         .saturating_sub(models::DEFAULT_MAX_TOKENS as u32)
                         .saturating_sub(BUILTIN_PROMPT_OVERHEAD_TOKENS)
+                        .min(BUILTIN_MAX_CHUNK_TOKENS)
                         as usize;
                     info!(
                         "✓ Using BuiltInAI context size: {} tokens (chunk size: {})",
