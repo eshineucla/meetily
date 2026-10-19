@@ -32,7 +32,8 @@ fn with_title(markdown: &str, title: &str) -> String {
     }
 }
 
-/// Ask where to save, then write the minutes as an official-document style .docx.
+/// Ask where to save, then write the minutes as an official-document style .docx, or as a PDF
+/// of that .docx (`format: "pdf"`) made by the office suite on the computer.
 /// Returns None when the user cancels the dialog.
 #[tauri::command]
 pub async fn export_minutes_docx_command<R: Runtime>(
@@ -41,7 +42,9 @@ pub async fn export_minutes_docx_command<R: Runtime>(
     markdown: String,
     keep_sources: Option<bool>,
     meeting_id: Option<String>,
+    format: Option<String>,
 ) -> Result<Option<DocxExportResult>, String> {
+    let as_pdf = format.as_deref() == Some("pdf");
     let options = ExportOptions { strip_sources: !keep_sources.unwrap_or(false), ..Default::default() };
     let fonts = FontResolver::detect();
     if !fonts.is_available() {
@@ -55,10 +58,11 @@ pub async fn export_minutes_docx_command<R: Runtime>(
         None => render_markdown_to_docx(&markdown, &fonts, &options)?,
     };
 
-    let file_name = format!("{}.docx", safe_file_name(&title));
+    let (extension, filter) = if as_pdf { ("pdf", "PDF 文件") } else { ("docx", "Word 文档") };
+    let file_name = format!("{}.{}", safe_file_name(&title), extension);
     let app_clone = app.clone();
     let picked = tokio::task::spawn_blocking(move || {
-        app_clone.dialog().file().set_file_name(&file_name).add_filter("Word 文档", &["docx"]).blocking_save_file()
+        app_clone.dialog().file().set_file_name(&file_name).add_filter(filter, &[extension]).blocking_save_file()
     })
     .await
     .map_err(|e| format!("File dialog task failed: {}", e))?;
@@ -68,22 +72,30 @@ pub async fn export_minutes_docx_command<R: Runtime>(
     };
     let mut path = std::path::PathBuf::from(picked.to_string());
     if path.extension().is_none() {
-        path.set_extension("docx");
+        path.set_extension(extension);
     }
-    std::fs::write(&path, &result.bytes).map_err(|e| format!("保存失败：{}", e))?;
+    let mut warnings = result.warnings;
+    if as_pdf {
+        let converter = super::pdf::docx_to_pdf(&result.bytes, &path).await?;
+        if converter != "Microsoft Word" {
+            warnings.push(format!("PDF 由 {} 转换，版式请再对照 Word 文件核对一遍", converter));
+        }
+    } else {
+        std::fs::write(&path, &result.bytes).map_err(|e| format!("保存失败：{}", e))?;
+    }
 
-    for warning in &result.warnings {
+    for warning in &warnings {
         warn!("docx export: {}", warning);
     }
     info!("Exported minutes to {}", path.display());
     crate::audit::record(
-        "export_docx",
+        if as_pdf { "export_pdf" } else { "export_docx" },
         Some("meeting"),
         meeting_id.as_deref(),
         serde_json::json!({ "user_template": with_template, "keep_sources": !options.strip_sources }),
     )
     .await;
-    Ok(Some(DocxExportResult { path: path.to_string_lossy().to_string(), warnings: result.warnings }))
+    Ok(Some(DocxExportResult { path: path.to_string_lossy().to_string(), warnings }))
 }
 
 /// The chosen template is copied into the app data folder, so moving or editing the original does not break export

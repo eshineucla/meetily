@@ -121,6 +121,9 @@ impl MeetingsRepository {
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    confidence: t.confidence,
+                    original_text: t.original_text,
+                    reviewed: t.reviewed_at.is_some(),
                 })
                 .collect::<Vec<_>>();
 

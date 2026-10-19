@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, RefreshCw, BookA } from 'lucide-react';
+import { Copy, FolderOpen, RefreshCw, BookA, FileAudio } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import type { CorrectionHit } from '@/components/GlossarySettings';
@@ -33,6 +33,21 @@ export function TranscriptButtonGroup({
   const { betaFeatures } = useConfig();
   const [showRetranscribeDialog, setShowRetranscribeDialog] = useState(false);
   const [applyingGlossary, setApplyingGlossary] = useState(false);
+  const [exportingAudio, setExportingAudio] = useState(false);
+
+  // Recordings are kept encrypted; this saves a copy that plays anywhere
+  const handleExportAudio = useCallback(async () => {
+    if (!meetingId) return;
+    setExportingAudio(true);
+    try {
+      const path = await invoke<string | null>('export_meeting_audio', { meetingId });
+      if (path) toast.success('已导出录音', { description: path });
+    } catch (error) {
+      toast.error('导出录音失败', { description: String(error) });
+    } finally {
+      setExportingAudio(false);
+    }
+  }, [meetingId]);
 
   // New glossary entries only apply to transcripts made afterwards; this applies them here too
   const handleApplyGlossary = useCallback(async () => {
@@ -94,6 +109,20 @@ export function TranscriptButtonGroup({
           <FolderOpen className="@[22rem]:mr-2" size={18} />
           <span className="hidden @[22rem]:inline">录音</span>
         </Button>
+
+        {meetingId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="px-2 @[22rem]:px-4"
+            onClick={handleExportAudio}
+            disabled={exportingAudio}
+            title="录音加密保存在录音文件夹里，导出一份可以直接播放的副本"
+          >
+            <FileAudio className="@[22rem]:mr-2" size={18} />
+            <span className="hidden @[22rem]:inline">{exportingAudio ? '导出中' : '导出录音'}</span>
+          </Button>
+        )}
 
         {meetingId && (
           <Button

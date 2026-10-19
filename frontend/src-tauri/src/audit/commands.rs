@@ -198,11 +198,11 @@ fn disk_encryption(data_dir: &Path) -> DiskEncryption {
         Some(3) => ("in_progress", format!("{} 盘正在启用 BitLocker", drive)),
         Some(8) => (
             "off",
-            format!("{} 盘的 BitLocker 等待激活，数据尚未受保护。请在“管理 BitLocker”中完成启用", drive),
+            format!("{} 盘的 BitLocker 等待激活。会议数据库、录音和记录稿已由程序加密，但录音过程中的临时分段和系统临时文件仍是明文。请在“管理 BitLocker”中完成启用", drive),
         ),
         Some(2) | Some(4) | Some(5) => (
             "off",
-            format!("{} 盘未启用 BitLocker，会议数据以明文存放。请启用 BitLocker 或单位统一的磁盘加密", drive),
+            format!("{} 盘未启用 BitLocker。会议数据库、录音和记录稿已由程序加密，但录音过程中的临时分段和系统临时文件仍是明文。建议启用 BitLocker 或单位统一的磁盘加密", drive),
         ),
         _ => ("unknown", format!("无法读取 {} 盘的 BitLocker 状态，请人工确认磁盘已加密", drive)),
     };

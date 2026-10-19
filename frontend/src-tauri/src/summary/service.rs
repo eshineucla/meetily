@@ -31,6 +31,8 @@ static METADATA_CACHE: LazyLock<ModelMetadataCache> =
 struct RegisteredCancellation {
     started_at: DateTime<Utc>,
     token: CancellationToken,
+    /// What the generation is doing now, shown while the user waits
+    stage: String,
 }
 
 static CANCELLATION_REGISTRY: LazyLock<Arc<Mutex<HashMap<String, RegisteredCancellation>>>> =
@@ -230,6 +232,7 @@ impl SummaryService {
             RegisteredCancellation {
                 started_at,
                 token: token.clone(),
+                stage: "正在准备".to_string(),
             },
         ) {
             previous.token.cancel();
@@ -252,6 +255,25 @@ impl SummaryService {
             warn!("No active summary generation found for meeting: {}", meeting_id);
             false
         }
+    }
+
+    /// Records the current stage of the generation identified by `started_at`
+    pub(crate) fn set_stage(meeting_id: &str, started_at: DateTime<Utc>, stage: String) {
+        let mut registry = CANCELLATION_REGISTRY
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(entry) = registry.get_mut(meeting_id).filter(|entry| entry.started_at == started_at) {
+            entry.stage = stage;
+        }
+    }
+
+    /// The stage of the generation running for this meeting, or None when none is running in
+    /// this app session (it finished, or the app was restarted while it ran)
+    pub fn active_stage(meeting_id: &str) -> Option<String> {
+        let registry = CANCELLATION_REGISTRY
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        registry.get(meeting_id).map(|entry| entry.stage.clone())
     }
 
     /// Cleans up only the matching generation token after processing completes.
@@ -572,6 +594,7 @@ impl SummaryService {
             summary_language.as_deref(),
             detected_summary_language.as_deref(),
             cached_english.as_deref(),
+            &|stage: String| Self::set_stage(&meeting_id, started_at, stage),
         )
         .await;
 

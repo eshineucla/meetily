@@ -138,8 +138,8 @@ pub async fn start_retranscription<R: Runtime>(
 }
 
 /// Find audio file in meeting folder
-/// Tries common names first, then scans for any file with an audio extension
-fn find_audio_file(folder: &Path) -> Result<PathBuf> {
+/// Tries common names first, then their encrypted forms, then scans for any file with an audio extension
+pub fn find_audio_file(folder: &Path) -> Result<PathBuf> {
     let candidates = [
         "audio.mp4", "audio.m4a", "audio.wav", "audio.mp3",
         "audio.flac", "audio.ogg", "recording.mp4",
@@ -151,6 +151,9 @@ fn find_audio_file(folder: &Path) -> Result<PathBuf> {
         if path.exists() {
             return Ok(path);
         }
+    }
+    if let Some(path) = crate::vault::folders::find_encrypted(folder, &candidates) {
+        return Ok(path);
     }
 
     // Fallback: scan folder for any file with an audio extension
@@ -200,7 +203,9 @@ async fn run_retranscription<R: Runtime>(
     // Decode the audio file (CPU-intensive, run in blocking task)
     let path_for_decode = audio_path.clone();
     let decoded = tokio::task::spawn_blocking(move || {
-        decode_audio_file(&path_for_decode)
+        // An encrypted recording is decoded from a temporary plain copy
+        let readable = crate::vault::folders::readable(&path_for_decode)?;
+        decode_audio_file(readable.path())
     })
     .await
     .map_err(|e| anyhow!("Decode task panicked: {}", e))??;
@@ -338,6 +343,7 @@ async fn run_retranscription<R: Runtime>(
 
     // Process each speech segment with progress updates
     let mut all_transcripts: Vec<(String, f64, f64)> = Vec::new(); // (text, start_ms, end_ms)
+    let mut confidences: Vec<Option<f64>> = Vec::new();
     let mut total_confidence = 0.0f32;
 
     for (i, segment) in processable_segments.iter().enumerate() {
@@ -394,6 +400,8 @@ async fn run_retranscription<R: Runtime>(
                 if trimmed.len() > 80 { let mut end = 80; while !trimmed.is_char_boundary(end) { end -= 1; } &trimmed[..end] } else { trimmed }
             );
             all_transcripts.push((text, segment.start_timestamp_ms, segment.end_timestamp_ms));
+            // Parakeet and SenseVoice report no confidence (the 0.9 above is a placeholder)
+            confidences.push(if use_parakeet { None } else { Some(conf as f64) });
             total_confidence += conf;
         } else {
             debug!("Segment {}/{}: {:.1}s — empty transcription", i + 1, processable_count, segment_duration_sec);
@@ -421,6 +429,9 @@ async fn run_retranscription<R: Runtime>(
 
     // Create transcript segments with proper timestamps from VAD
     let mut segments = create_transcript_segments(&all_transcripts);
+    for (segment, confidence) in segments.iter_mut().zip(confidences) {
+        segment.confidence = confidence;
+    }
     let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));
 
     // Save to database
@@ -443,8 +454,8 @@ async fn run_retranscription<R: Runtime>(
 
     for segment in &segments {
         sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, confidence)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&segment.id)
         .bind(&meeting_id)
@@ -453,6 +464,7 @@ async fn run_retranscription<R: Runtime>(
         .bind(segment.audio_start_time)
         .bind(segment.audio_end_time)
         .bind(segment.duration)
+        .bind(segment.confidence)
         .execute(&mut *tx)
         .await
         .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;
@@ -476,7 +488,8 @@ async fn run_retranscription<R: Runtime>(
     }
 
     // Find audio filename for metadata
-    let audio_filename = audio_path
+    let audio_filename = crate::vault::file_crypt::plain_path(&audio_path)
+        .unwrap_or_else(|| audio_path.clone())
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("audio.mp4")
@@ -490,6 +503,8 @@ async fn run_retranscription<R: Runtime>(
     ) {
         warn!("Failed to update metadata.json: {}", e);
     }
+
+    crate::vault::folders::seal_folder_or_warn(&folder_path);
 
     emit_progress(&app, &meeting_id, "complete", 100, "Retranscription complete");
 

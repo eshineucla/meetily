@@ -215,8 +215,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     onUpdate: (result: SummaryProcessResponse) => void | Promise<void>
   ) => {
     stopSummaryPolling(meetingId);
+    // No time limit: a long transcript on a local model can take well over 15 minutes. The
+    // backend reports an error itself when the generation is no longer running.
     let pollCount = 0;
-    const maxPolls = 200;
     const poll = async () => {
       const entry = summaryPollsRef.current.get(meetingId);
       if (!entry || entry.processId !== processId || entry.inFlight) {
@@ -225,21 +226,6 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       entry.inFlight = true;
       try {
         pollCount += 1;
-        if (pollCount >= maxPolls) {
-          await onUpdate({
-            status: 'error',
-            meetingName: null,
-            meeting_id: meetingId,
-            start: processId,
-            end: null,
-            data: null,
-            error: '生成纪要超时（超过 15 分钟），请重试或检查模型配置。',
-          });
-          if (summaryPollsRef.current.get(meetingId) === entry) {
-            stopSummaryPolling(meetingId, processId);
-          }
-          return;
-        }
 
         const result = await invoke<SummaryProcessResponse>('api_get_summary', { meetingId });
         const current = summaryPollsRef.current.get(meetingId);

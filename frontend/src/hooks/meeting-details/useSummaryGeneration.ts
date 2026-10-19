@@ -106,6 +106,7 @@ export function useSummaryGeneration({
 }: UseSummaryGenerationProps) {
   const restored = initialSummary?.meeting_id === meeting.id ? initialSummary : null;
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>(() => restoredSummaryStatus(restored));
+  const [summaryProgress, setSummaryProgress] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(() =>
     restoredSummaryStatus(restored) === 'error'
       ? restored?.error || '纪要生成失败，请重试。'
@@ -186,6 +187,11 @@ export function useSummaryGeneration({
     if (!mountedRef.current || visibleMeetingIdRef.current !== meeting.id || generationId !== generationIdRef.current) {
       return;
     }
+    setSummaryProgress(
+      pollingResult.status === 'processing' || pollingResult.status === 'pending'
+        ? pollingResult.progress ?? null
+        : null,
+    );
     if (pollingResult.status === 'cancelled') {
       let existing: SummaryProcessResponse;
       try {
@@ -334,6 +340,7 @@ export function useSummaryGeneration({
     const generationId = ++generationIdRef.current;
     activeProcessIdRef.current = null;
     setSummaryStatus(isRegeneration ? 'regenerating' : 'processing');
+    setSummaryProgress(null);
     setSummaryError(null);
 
     try {
@@ -597,6 +604,7 @@ export function useSummaryGeneration({
 
   return {
     summaryStatus,
+    summaryProgress,
     summaryError,
     handleGenerateSummary,
     handleRegenerateSummary,

@@ -16,6 +16,7 @@
 pub mod commands;
 pub mod fonts;
 pub mod normalize;
+pub mod pdf;
 pub mod template;
 
 use fonts::FontResolver;

@@ -446,6 +446,7 @@ pub(crate) async fn generate_meeting_summary(
     summary_language: Option<&str>,
     detected_transcript_language: Option<&str>,
     cached_english: Option<&str>,
+    on_stage: &(dyn Fn(String) + Sync),
 ) -> Result<GeneratedMeetingSummary, String> {
     if cancellation_token.is_some_and(CancellationToken::is_cancelled) {
         return Err("Summary generation was cancelled".to_string());
@@ -476,6 +477,7 @@ pub(crate) async fn generate_meeting_summary(
                     if cancellation_token.is_some_and(CancellationToken::is_cancelled) {
                         return Err("Summary generation was cancelled".to_string());
                     }
+                    on_stage(format!("正在提炼第 {}/{} 段", index + 1, num_chunks));
                     let prompt = build_chunk_summary_user_prompt(chunk, base_instruction);
                     for attempt in 1..=MAX_CHUNK_ATTEMPTS {
                         let result = match generate_summary(
@@ -541,6 +543,7 @@ pub(crate) async fn generate_meeting_summary(
                 content_to_summarize = if chunk_summaries.len() == 1 {
                     chunk_summaries.remove(0)
                 } else {
+                    on_stage(format!("正在合并 {} 段的要点", chunk_summaries.len()));
                     let prompt = build_combine_summary_user_prompt(&chunk_summaries.join("\n---\n"), base_instruction);
                     let completion = generate_summary(
                         client, provider, model_name, api_key,
@@ -560,6 +563,7 @@ pub(crate) async fn generate_meeting_summary(
             }
 
             info!("Generating final markdown report with template: {}", template_id);
+            on_stage("正在按模板生成纪要".to_string());
             let final_system_prompt = build_final_report_system_prompt(
                 &template.to_section_instructions(),
                 &template.to_markdown_structure(),
@@ -594,6 +598,7 @@ pub(crate) async fn generate_meeting_summary(
     let (final_markdown, normalization_fallback) =
         match final_action {
             FinalLanguageAction::Translate(language) => {
+                on_stage("正在整理纪要语言".to_string());
                 let translated = translate_markdown(
                     client, provider, model_name, api_key, &english_markdown, language,
                     ollama_endpoint, custom_openai_endpoint, max_tokens, temperature, top_p,
@@ -605,6 +610,7 @@ pub(crate) async fn generate_meeting_summary(
                 (translated.markdown, false)
             }
             FinalLanguageAction::NormalizeEnglish => {
+                on_stage("正在整理纪要语言".to_string());
                 let (normalized, fallback) = english_markdown_after_normalization_result(
                     &english_markdown,
                     normalize_markdown_to_english(

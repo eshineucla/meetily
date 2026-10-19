@@ -248,6 +248,13 @@ pub struct MeetingCorrection {
 #[tauri::command]
 pub async fn glossary_apply_to_meeting(meeting_id: String) -> Result<MeetingCorrection, String> {
     let pool = super::pool()?;
+    if crate::database::repositories::meeting::MeetingsRepository::get_finalized_at(&pool, &meeting_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .is_some()
+    {
+        return Err("纪要已定稿，记录稿不能修改；要修改请先取消定稿".to_string());
+    }
     let rows = sqlx::query("SELECT id, transcript FROM transcripts WHERE meeting_id = ?")
         .bind(&meeting_id)
         .fetch_all(&pool)

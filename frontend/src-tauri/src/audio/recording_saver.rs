@@ -444,6 +444,11 @@ impl RecordingSaver {
             warn!("Failed to emit recording-saved event: {}", e);
         }
 
+        // The recording and transcripts.json are only kept encrypted once the recording is done
+        if let Some(folder) = &self.meeting_folder {
+            crate::vault::folders::seal_folder_or_warn(folder);
+        }
+
         // Clean up transcript segments
         if let Ok(mut segments) = self.transcript_segments.lock() {
             segments.clear();

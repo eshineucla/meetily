@@ -142,6 +142,7 @@ pub async fn import_transcript_text_command(
             audio_start_time: None,
             audio_end_time: None,
             duration: None,
+            confidence: None,
         })
         .collect();
     let (glossary_hits, glossary_changed) = crate::glossary::correct_all(segments.iter_mut().map(|s| &mut s.text));

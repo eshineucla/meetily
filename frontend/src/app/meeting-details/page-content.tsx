@@ -14,11 +14,13 @@ import { ModelConfig } from '@/components/ModelSettingsModal';
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGeneration';
+import { useMeetingContext } from '@/hooks/meeting-details/useMeetingContext';
 import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useConfig } from '@/contexts/ConfigContext';
 import { parseSummaryContent } from '@/lib/summary-content';
+import type { EditedLine } from '@/lib/transcript-review';
 
 export default function PageContent({
   meeting,
@@ -35,6 +37,8 @@ export default function PageContent({
   totalCount,
   loadedCount,
   onLoadMore,
+  onLoadAll,
+  onLineUpdated,
 }: {
   meeting: any;
   summaryData: MeetingSummary | null;
@@ -50,6 +54,8 @@ export default function PageContent({
   totalCount?: number;
   loadedCount?: number;
   onLoadMore?: () => void;
+  onLoadAll?: () => Promise<void>;
+  onLineUpdated?: (line: EditedLine) => void;
 }) {
   console.log('📄 PAGE CONTENT: Initializing with data:', {
     meetingId: meeting.id,
@@ -58,9 +64,14 @@ export default function PageContent({
   });
 
   // State
-  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const { text: customPrompt, setText: setCustomPrompt, saveState: contextSaveState } = useMeetingContext(meeting.id);
   const isRecording = false;
   const [activeTab, setActiveTab] = useState<MeetingDetailsTab>('transcript');
+  const [focusLine, setFocusLine] = useState<{ id: string; nonce: number } | null>(null);
+  const locateLine = (id: string) => {
+    setFocusLine({ id, nonce: Date.now() });
+    setActiveTab('transcript');
+  };
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -240,6 +251,7 @@ export default function PageContent({
               transcripts={meetingData.transcripts}
               customPrompt={customPrompt}
               onPromptChange={setCustomPrompt}
+              promptSaveState={contextSaveState}
               onCopyTranscript={copyOperations.handleCopyTranscript}
               onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
               isRecording={isRecording}
@@ -254,6 +266,10 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
+              isFinalized={isFinalized}
+              onLineUpdated={onLineUpdated}
+              onLoadAll={onLoadAll}
+              focusLine={focusLine}
             />
           }
           summary={
@@ -267,6 +283,7 @@ export default function PageContent({
               onCopySummary={copyOperations.handleCopySummary}
               aiSummary={meetingData.aiSummary}
               summaryStatus={summaryGeneration.summaryStatus}
+              summaryProgress={summaryGeneration.summaryProgress}
               transcripts={meetingData.transcripts}
               modelConfig={modelConfig}
               setModelConfig={setModelConfig}
@@ -286,6 +303,7 @@ export default function PageContent({
               isModelConfigLoading={isModelConfigLoading}
               onOpenModelSettings={handleRegisterModalOpen}
               isFinalized={isFinalized}
+              onLocateLine={locateLine}
               onSetFinalized={handleSetFinalized}
               onSummaryRestored={handleSummaryRestored}
             />

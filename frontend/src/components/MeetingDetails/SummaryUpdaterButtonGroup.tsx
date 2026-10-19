@@ -13,6 +13,7 @@ interface SummaryUpdaterButtonGroupProps {
   /** Hide saving once the minutes are final */
   readOnly?: boolean;
   onExportDocx?: () => Promise<void>;
+  onExportPdf?: () => Promise<void>;
   isExporting?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function SummaryUpdaterButtonGroup({
   onCopy,
   readOnly = false,
   onExportDocx,
+  onExportPdf,
   isExporting = false,
 }: SummaryUpdaterButtonGroupProps) {
   return (
@@ -77,6 +79,19 @@ export function SummaryUpdaterButtonGroup({
         >
           {isExporting ? <Loader2 className="animate-spin" /> : <FileDown />}
           <span className="hidden @[40rem]:inline">导出 Word</span>
+        </Button>
+      )}
+
+      {onExportPdf && (
+        <Button
+          variant="outline"
+          size="sm"
+          title="导出 PDF：用本机的 Word、WPS 或 LibreOffice 把公文格式的 Word 文档转成 PDF"
+          onClick={() => onExportPdf()}
+          disabled={isExporting}
+        >
+          {isExporting ? <Loader2 className="animate-spin" /> : <FileDown />}
+          <span className="hidden @[40rem]:inline">导出 PDF</span>
         </Button>
       )}
 

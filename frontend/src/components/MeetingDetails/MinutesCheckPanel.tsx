@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, X, Loader2, LocateFixed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ISSUE_LABELS, MinutesCheckResult } from '@/lib/minutes-check';
 
@@ -11,9 +11,11 @@ interface MinutesCheckPanelProps {
   onRecheck: () => void;
   /** Set when the check ran because the user asked to finalize */
   onFinalizeAnyway?: () => void;
+  /** Show the transcript line an item's quote comes from */
+  onLocateLine?: (lineId: string) => void;
 }
 
-export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFinalizeAnyway }: MinutesCheckPanelProps) {
+export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFinalizeAnyway, onLocateLine }: MinutesCheckPanelProps) {
   return (
     <aside className="w-80 flex-shrink-0 border-l border-gray-200 bg-gray-50 flex flex-col min-h-0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
@@ -30,7 +32,7 @@ export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFi
           </div>
         ) : result.items.length === 0 ? (
           <p className="text-gray-600">
-            没有找到“议定事项”或“分工落实”之类的章节，无法检查。请用“会议纪要（公文格式）”模板生成纪要。
+            没有找到“会议基本情况”“议定事项”“分工落实”之类的章节，无法检查。请用“会议纪要（公文格式）”或党组会、专题会、协调会、例会纪要模板生成纪要。
           </p>
         ) : (
           <>
@@ -38,7 +40,7 @@ export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFi
               共检查 {result.items.length} 项，{result.issueCount > 0 ? `${result.issueCount} 项有问题` : '都没有问题'}。
             </p>
             <p className="text-xs text-gray-500">
-              规则：任务要有责任人和完成时限；每条事项要注明原文出处，且出处能在记录稿中找到。
+              规则：会议时间、地点、主持人、参会人员、议题要填写；任务要有责任人和完成时限；每条事项要注明原文出处，且出处能在记录稿中找到；不用口语或含糊表述。
             </p>
             {result.items.map((item, index) => (
               <div
@@ -54,6 +56,14 @@ export function MinutesCheckPanel({ result, isChecking, onClose, onRecheck, onFi
                   <div className="min-w-0">
                     <div className="text-xs text-gray-500">{item.section}</div>
                     <div className="text-gray-900 break-words">{item.text}</div>
+                    {item.lineId && onLocateLine && (
+                      <button
+                        onClick={() => onLocateLine(item.lineId!)}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                      >
+                        <LocateFixed className="w-3 h-3" /> 在记录稿中查看原话
+                      </button>
+                    )}
                     {item.issues.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {item.issues.map((issue) => (
